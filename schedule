@@ -1,0 +1,24 @@
+
+- Sun May 1st (week 8)
+rake client locates, opens, and parses Rakefile ( C and Python )
+execute all actions on the rake client's computer
+
+
+- Sun May 8th (week 9)
+commence development and testing of your rakeserver
+
+
+- Tues May 10th (week 10)
+extending your rake client to contact your rakeserver
+
+
+supporting multiple instances of your rakeserver
+
+
+exchange meaningful commands and responses
+
+
+execute simple actions on your rakeserver
+
+
+performing compilation and linking
