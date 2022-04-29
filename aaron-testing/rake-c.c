@@ -43,12 +43,13 @@ int n_rackfiles = 0;
 Rackfile rackfiles[MAX_FILES_TO_PROCESS];
 
 
-int char_at(char *line)
+int char_at(char *line, char toFind)
 {
-    char *e;
-
-    e = strchr(line, 'e');
-    return ((int) (e - line));
+    char *ptr;
+    ptr = strchr(line, toFind);
+    if (ptr == NULL)
+        return -1;
+    return ((int) (ptr - line));
 }
 
 void read_rackfile()
@@ -57,8 +58,9 @@ void read_rackfile()
     {
         for (int j=0 ; j<rackfiles[i].nActions ; j++)
         {
-            printf("%s\n", rackfiles[i].actions[j]);
+            printf("%s", rackfiles[i].actions[j]);
         }
+        printf("\n\n");
     }
 }
 
@@ -72,14 +74,23 @@ void read_file(char *filename)
     {
         while(fgets(line, sizeof(line), fp) != NULL) 
         {
-            if (strcmp(line, "\n") != 0)
-                printf("%s", line);
+            // if (strcmp(line, "\n") != 0)
+            //     printf("%s", line);
 
             // STORE ACTIONS, AND IGNORE EMPTY LINES
             if (strcmp(line, "\n") != 0)
             {
                 int nAction = rackfiles[n_rackfiles].nActions;
-                strcpy(rackfiles[n_rackfiles].actions[nAction], line);
+                int commentCharIndex = char_at(line, '#');
+                if (commentCharIndex != -1)
+                {
+                    strncpy(rackfiles[n_rackfiles].actions[nAction], line, commentCharIndex);
+                    strcat(rackfiles[n_rackfiles].actions[nAction], "\n");
+                }
+                else
+                {
+                    strcpy(rackfiles[n_rackfiles].actions[nAction], line);
+                }
                 rackfiles[n_rackfiles].nActions++;
             }
         }
@@ -144,7 +155,7 @@ int main(int argc, char *argv[])
     }
 
     printf(MAG);
-    // read_rackfile();
+    read_rackfile();
     printf(RESET);
 
 
@@ -153,3 +164,4 @@ int main(int argc, char *argv[])
 }
 
 // cc -std=c99 -Wall -Werror -pedantic -o
+// cc -std=c99 -Wall -Werror -o rake-c rake-c.c && ./rake-c
