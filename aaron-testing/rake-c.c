@@ -19,23 +19,48 @@
 #define     WHT                         "\e[0;37m"
 #define     RESET                       "\e[0m"
 
-typedef struct ActionSets {
-    char    actions[BUFFER_SIZE];
-    char    dependencies[BUFFER_SIZE];
-} ActionSets;
+// typedef struct ActionSets {
+//     char    actions[BUFFER_SIZE];
+//     char    dependencies[BUFFER_SIZE];
+// } ActionSets;
 
 typedef struct Rackfile
 {
     int     port;
     char    hosts[BUFFER_SIZE];
+    int     nActions;
 
-    char    ActionSets[BUFFER_SIZE];   //  each VALID line
+    // char    ActionSets[BUFFER_SIZE];   //  each VALID line
+    char    actions[BUFFER_SIZE][BUFFER_SIZE];   //  each VALID line
 } Rackfile;
 
 
-int n_files_in_dir;
+
+int n_files_in_dir = 0;
 char *files_in_dir[MAX_FILES_TO_PROCESS];
 
+int n_rackfiles = 0;
+Rackfile rackfiles[MAX_FILES_TO_PROCESS];
+
+
+int char_at(char *line)
+{
+    char *e;
+
+    e = strchr(line, 'e');
+    return ((int) (e - line));
+}
+
+void read_rackfile()
+{
+    for (int i=0 ; i<n_rackfiles ; i++)
+    {
+        for (int j=0 ; j<rackfiles[i].nActions ; j++)
+        {
+            printf("%s\n", rackfiles[i].actions[j]);
+        }
+    }
+}
 
 void read_file(char *filename)
 {
@@ -47,18 +72,25 @@ void read_file(char *filename)
     {
         while(fgets(line, sizeof(line), fp) != NULL) 
         {
-            printf("%s", line);
+            if (strcmp(line, "\n") != 0)
+                printf("%s", line);
+
+            // STORE ACTIONS, AND IGNORE EMPTY LINES
+            if (strcmp(line, "\n") != 0)
+            {
+                int nAction = rackfiles[n_rackfiles].nActions;
+                strcpy(rackfiles[n_rackfiles].actions[nAction], line);
+                rackfiles[n_rackfiles].nActions++;
+            }
         }
     }
     fclose(fp);
+    n_rackfiles++;
 }
 
 
 void list_directory(char *ignorefile, char *dirname)
 {
-    printf(CYN);
-
-    // char files_to_ignore[MAX_FILE_NAME][MAX_FILES_IN_DIRECTORY];
     // files_to_ignore[0] = ".";
     // files_to_ignore[0] = "..";
 
@@ -66,7 +98,7 @@ void list_directory(char *ignorefile, char *dirname)
     struct dirent   *dp;
 
     dirp       = opendir(dirname);
-    if(dirp != NULL) 
+    if (dirp != NULL) 
     {
         int ind = 0;
         while((dp = readdir(dirp)) != NULL) 
@@ -80,19 +112,16 @@ void list_directory(char *ignorefile, char *dirname)
         }
         closedir(dirp);
     }
-
-    printf(RESET);
 }
 
 int main(int argc, char *argv[])
 {
     printf("\n");
 
-    n_files_in_dir = 0;
-
     char *progname = argv[0];
     progname += 2;
 
+    printf(CYN);
     // READ FROM CURRENT DIRECTORY
     if (argc == 1)
         list_directory(progname, ".");
@@ -101,17 +130,22 @@ int main(int argc, char *argv[])
     else if (argc > 1)
         list_directory(progname, argv[1]);
 
-    printf("\n");
+    printf(RESET); printf("\n");
 
     for (int i=0 ; i<n_files_in_dir ; i++)
     {
         printf("%i. %s\n", i, files_in_dir[i]);
         printf(MAG);
+        
         read_file(files_in_dir[i]);
+        
         printf(RESET);
         printf("\n");
     }
 
+    printf(MAG);
+    // read_rackfile();
+    printf(RESET);
 
 
     printf("\n");
