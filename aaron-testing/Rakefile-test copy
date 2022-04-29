@@ -1,0 +1,18 @@
+# A typical Rakefile
+
+PORT  = 6138
+HOSTS = hostname1 hostname2 hostname3:6333
+
+actionset3:
+    echo starting actionset3
+    remote-cc [optional-flags] -c program.c
+        requires program.c program.h allfunctions.h
+    remote-cc [optional-flags] -c square.c
+        requires square.c allfunctions.h
+    remote-cc [optional-flags] -c cube.c
+        requires cube.c allfunctions.h
+
+actionset4:
+    echo starting actionset4
+    remote-cc [optional-flags] -o program program.o square.o cube.o
+        requires program.o square.o cube.o
