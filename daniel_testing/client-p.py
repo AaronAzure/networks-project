@@ -33,7 +33,7 @@ def dict_process(items):
 	
 	for item in items:
 		if item.find('PORT') >= 0:
-			item_dictionary['Port'] = item.split('= ', 1)[1]
+			item_dictionary['Port'] = int(item.split('= ', 1)[1])
 		
 		if item.find('HOST') >= 0:
 			item = item.replace('HOSTS = ', '')
@@ -61,7 +61,9 @@ def dict_process(items):
 	count = 0
 	for host in item_dictionary.get('Hosts'):
 		if host.find(':') >= 0:
-			item_dictionary['Hosts'][count] = host.split(':', 1)
+			item_dictionary['Hosts'][count] = [host.split(':', 1)[0], int(host.split(':', 1)[1])]
+		else:
+			item_dictionary['Hosts'][count] = [host, item_dictionary['Port']]
 		count += 1
 			
 	return item_dictionary
