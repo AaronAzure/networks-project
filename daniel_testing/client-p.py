@@ -24,7 +24,7 @@ def fread(filename):
 # Function that converts all items in a list to a dictionary, which is then returned.	
 def dict_process(items):
 	
-	# Dictionary holding the port number, a 1D array of hosts and a 2D array of action sets.
+	# Dictionary holding the port number, a 1D array of hosts and a series of 2D action set arrays.
 	item_dictionary = {'Port': '', 'Hosts': []}
 	
 	# variables for the action set
