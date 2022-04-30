@@ -14,10 +14,10 @@ def fread(filename):
 		
 		if line.find('#') >= 0:	# strip '#' and all characters after it from that line
 		
-			split_string = line.split("#", 1)
+			split_string = line.split('#', 1)
 			lines[count] = split_string[0]
 		
-		lines[count] = lines[count].strip()	# strip newline
+		lines[count] = lines[count].rstrip('\n')	# strip newline
 		count += 1
 	return lines
 
@@ -25,20 +25,45 @@ def fread(filename):
 def dict_process(items):
 	
 	# Dictionary holding the port number, a 1D array of hosts and a 2D array of action sets.
-	item_dictionary = {'Port': '', 'Hosts': [], 'Action Sets': []}
+	item_dictionary = {'Port': '', 'Hosts': []}
 	
 	# variables for the action set
-	a_set_count = -1
-	a_set = []
+	count = 1
+	action = []
 	
 	for item in items:
 		if item.find('PORT') >= 0:
-			item_dictionary['Port'] = item.split("= ", 1)[1]
+			item_dictionary['Port'] = item.split('= ', 1)[1]
 		
 		if item.find('HOST') >= 0:
 			item = item.replace('HOSTS = ', '')
 			item_dictionary['Hosts'] = item.split(' ', item.count(' '))
+			
+		if item.find('actionset' + str(count) + ':') >= 0:
+			item_dictionary['Action Set ' + str(count)] = []
+			count += 1
+		
+		if item.count('\t') == 1:
+			if len(action) == 1:
+				item_dictionary['Action Set ' + str(count - 1)].append(action)
+				action = []
+				action.append(item.strip())
+			else:
+				action.append(item.strip())
+		
+		if item.count('\t') == 2:
+			action.append(item.strip())
+			item_dictionary['Action Set ' + str(count - 1)].append(action)
+			action = []
+		
+		
 	
+	count = 0
+	for host in item_dictionary.get('Hosts'):
+		if host.find(':') >= 0:
+			item_dictionary['Hosts'][count] = host.split(':', 1)
+		count += 1
+			
 	return item_dictionary
 
 def main():
@@ -53,4 +78,3 @@ def main():
 main()
 
 # NOTE: SHOULD WORK WITH `python3 client-p.py`
-# ASSUMPTION: USING PYTHON3
