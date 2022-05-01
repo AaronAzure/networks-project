@@ -4,13 +4,10 @@ import subprocess
 # Function that receives a filename and then returns a list of lines in that file.
 def fread(filename):
 	rfile = open(filename, 'r')
-	
 	lines = rfile.readlines()
-	
 	rfile.close()
 	
 	count = 0
-	
 	for line in lines:
 		
 		if line.find('#') >= 0:	# strip '#' and all characters after it from that line
@@ -26,7 +23,7 @@ def fread(filename):
 # Function that converts all items in a list to a dictionary, which is then returned.	
 def dict_process(items):
 	
-	# Dictionary holding the port number, a 1D array of hosts and a 2D array of action sets.
+	# Dictionary holding the port number, a 1D array of hosts and a 2D arrays of action sets.
 	item_dictionary = {'Port': '', 'Hosts': []}
 	
 	# variables for the action set
@@ -59,7 +56,7 @@ def dict_process(items):
 			action = []
 		
 		
-	
+	# All hosts with no specified port number get assigned the default port number.
 	count = 0
 	for host in item_dictionary.get('Hosts'):
 		if host.find(':') >= 0:
@@ -83,14 +80,31 @@ def execute_action_sets(rdictionary):
 	
 	for actionset in actionsets:
 		for action in rdictionary[actionset]:
+			
+			# External programs that do not depend on files.
 			if len(action) == 1:
 				os.system(action[0])
 			
+			# External programs that do depend on files.
 			if len(action) == 2:
 				arguments = action[0].split()
 				action[1] = action[1].lstrip('requires ')
 				required = action[1].split()
 				
+				count = 0
+				
+				if arguments[0].find('remote') < 0: # Non-remote compiling.
+					for argument in arguments:
+					
+						path = None
+						
+						if argument.find('.') >= 0:
+							path = file_path(argument)
+						
+						if not path == None:
+							arguments[count] = path
+						
+						count += 1
 				output = subprocess.run(arguments, capture_output = True)
 				print(output)
 				print('\n')
@@ -98,6 +112,13 @@ def execute_action_sets(rdictionary):
 				
 	
 	return actionsets
+
+# Function to find a file path in the working directory.
+def file_path(filename):
+	for r, d, f in os.walk(os.getcwd()):
+		if filename in f:
+			return os.path.join(r, filename)
+	return None
 
 
 ####################################################################################################
@@ -112,7 +133,8 @@ def main():
 	for r, d, f in os.walk(directory):
 		for file in f:
 			if not '.' in file and not 'Make' in file and not os.path.getsize(file) == 0:
-				rakefiles.append(os.path.join(r, file))
+				if not 'program' in file:
+					rakefiles.append(os.path.join(r, file))
 		
 	for item in rakefiles:
 		print('\n', 'Looking at this file: ', item)
