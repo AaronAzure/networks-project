@@ -4,10 +4,12 @@
 #include  <string.h>
 #include  <sys/types.h>
 #include  <dirent.h>
+#include  <stdbool.h>
 
 #define     MAX_FILES_IN_DIRECTORY      128
 #define     MAX_FILES_TO_PROCESS        128
-#define     MAX_HOST                    64
+#define     MAX_HOSTS                   32
+#define     MAX_ACTIONS                 32
 #define     BUFFER_SIZE                 512
 #define     MAX_FILE_NAME               64
 
@@ -25,15 +27,25 @@
 // ----------------------- GLOBAL VARIABLES --------------------------
 
 
-typedef struct Rackfile
+typedef struct ActionSet
 {
-    int     port;
-
-    int     nHosts;
-    char    hosts[MAX_HOST][BUFFER_SIZE];
-
+    char    actionName[BUFFER_SIZE];
+    
     int     nActions;
     char    actions[BUFFER_SIZE][BUFFER_SIZE];   //  each VALID line
+} ActionSet;
+
+
+typedef struct Rackfile
+{
+    int         port;
+
+    int         nHosts;
+    char        hosts[MAX_HOSTS][BUFFER_SIZE];
+
+    int         nActionSets;
+    ActionSet   actionSets[MAX_ACTIONS];    //! ERROR
+    // char    actions[BUFFER_SIZE][BUFFER_SIZE];   //  each VALID line
 } Rackfile;
 
 
@@ -100,6 +112,17 @@ char *get_last_word(char *line)
 }
 
 
+int min(int x, int y)
+{
+    return (x < y ? x : y);
+}
+
+int max(int x, int y)
+{
+    return (x > y ? x : y);
+}
+
+
 /**
  * @brief   Find first occurrence of specified character in string
  * 
@@ -138,8 +161,13 @@ void read_rackfile()
             printf(" - %s\n", rackfiles[i].hosts[h]);
 
         // ACTIONSETS
-        for (int a=0 ; a<rackfiles[i].nActions ; a++)
-            printf("%s", rackfiles[i].actions[a]);
+        for (int k=0 ; k<rackfiles[i].nActionSets ; k++)
+        {
+            printf("%s", rackfiles[i].actionSets[k].actionName);
+            for (int a=0 ; a<rackfiles[i].actionSets[k].nActions ; a++)
+                printf(" - %s", rackfiles[i].actionSets[k].actions[a]);
+                // printf("%s", rackfiles[i].actions[a]);
+        }
 
         printf("\n\n");
     }
@@ -159,17 +187,22 @@ void parse_file(char *filename)
     FILE  *fp = fopen(filename, "r");
     char  line[BUFFER_SIZE];
 
-    if(fp != NULL) 
+    if (fp != NULL) 
     {
-        while(fgets(line, sizeof(line), fp) != NULL) 
+        int nAction    = 0;
+        int nActionSet = 0;
+        while (fgets(line, sizeof(line), fp) != NULL) 
         {
             // if (strcmp(line, "\n") != 0)
             //     printf("%s", line);
 
             // STORE NON-EMPTY LINES
-            if (strcmp(line, "\n") != 0)
+            // if (strncmp("\n", line, strlen("\n")) != 0) // starting with a new line char
+            if (strcmp(line, "\n") != 0) // is a newline character
             {
-                int nAction = rackfiles[n_rackfiles].nActions;
+                // int *nActionSet = &rackfiles[n_rackfiles].nActionSets;
+                // int *nAction    = &rackfiles[n_rackfiles].actionSets[*nActionSet].nActions;
+                // printf(" -> %i\n", *nActionSet);
                 int commentCharIndex = char_at(line, '#');
 
                 // IF LINE STARTS WITH PORT, GET AND STORE PORT NUMBER
@@ -198,22 +231,32 @@ void parse_file(char *filename)
                     }
 
                 }
+                // IF LINE STARTS WITH actionset, GET AND STORE Action
+                else if (strncmp("actionset", line, strlen("actionset")) == 0)
+                {
+                    strcpy(rackfiles[n_rackfiles].actionSets[nActionSet].actionName, line);
+                    rackfiles[n_rackfiles].actionSets[nActionSet].nActions = nAction;
+                    nAction = 0;
+                    nActionSet++;
+                }
                 // IF THERE IS A COMMENT SYMBOL, STORE ENTIRE LINE UNTIL FIRST '#'
                 else if (commentCharIndex != -1)
                 {
-                    strncpy(rackfiles[n_rackfiles].actions[nAction], line, commentCharIndex);
-                    strcat(rackfiles[n_rackfiles].actions[nAction], "\n");
+                    strncpy(rackfiles[n_rackfiles].actionSets[ max( nActionSet - 1, 0 ) ].actions[nAction], line, commentCharIndex);
+                    strcat(rackfiles[n_rackfiles].actionSets[ max( nActionSet - 1, 0 ) ].actions[nAction], "\n");
+                    nAction++;
                 }
                 // STORE ENTIRE LINE
                 else
                 {
                     trim_leading(line);
-                    strcpy(rackfiles[n_rackfiles].actions[nAction], line);
+                    strcpy(rackfiles[n_rackfiles].actionSets[ max( nActionSet - 1, 0 ) ].actions[nAction], line);
+                    nAction++;
                 }
-                rackfiles[n_rackfiles].nActions++;
             }
         }
         fclose(fp);
+        rackfiles[n_rackfiles].nActionSets = nActionSet;
         n_rackfiles++;
     }
 }
@@ -274,13 +317,14 @@ int main(int argc, char *argv[])
 
     printf(RESET); printf("\n");
 
+    // EXTRACT INFO FROM EACH FILE
     for (int i=0 ; i<n_files_in_dir ; i++)
         parse_file(files_in_dir[i]);
 
+    // DEBUGGING
     printf(YEL);
     read_rackfile();
     printf(RESET);
-
 
     printf("\n");
     return EXIT_SUCCESS;
