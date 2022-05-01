@@ -141,6 +141,29 @@ int char_at(char *line, char toFind)
     return ((int) (ptr - line));
 }
 
+
+void execute_action(char *command)
+{
+    system(command);
+}
+
+
+void execute_all()
+{
+    for (int i=0 ; i<n_rackfiles ; i++)
+    {
+        printf("EXECUTING\n");
+
+        // ACTIONSETS
+        for (int k=0 ; k<rackfiles[i].nActionSets ; k++)
+            for (int a=0 ; a<rackfiles[i].actionSets[k].nActions ; a++)
+                execute_action(rackfiles[i].actionSets[k].actions[a]);
+
+        printf("\n\n");
+    }
+}
+
+
 /**
  * @brief   (Debugging purposes) 
  *          For each anaylsed file:
@@ -149,11 +172,11 @@ int char_at(char *line, char toFind)
  *           - Print all actionset(s)
  * 
  */
-void read_rackfile()
+void debug_rackfile()
 {
     for (int i=0 ; i<n_rackfiles ; i++)
     {
-        printf(YEL);
+        printf("Analysing %s\n", files_in_dir[i]);
 
         // PORT NUMBER
         printf("port num:\n - %i\n", rackfiles[i].port);
@@ -166,7 +189,8 @@ void read_rackfile()
         // ACTIONSETS
         for (int k=0 ; k<rackfiles[i].nActionSets ; k++)
         {
-            printf("%s", rackfiles[i].actionSets[k].actionName);
+            printf("%s:\n", rackfiles[i].actionSets[k].actionName);
+            // printf("%s (%i)", rackfiles[i].actionSets[k].actionName, rackfiles[i].actionSets[k].nActions);
             for (int a=0 ; a<rackfiles[i].actionSets[k].nActions ; a++)
                 printf(" - %s", rackfiles[i].actionSets[k].actions[a]);
                 // printf("%s", rackfiles[i].actions[a]);
@@ -187,24 +211,21 @@ void read_rackfile()
  */
 void parse_file(char *filename)
 {
+    printf("-- parsing %s\n", filename);
     FILE  *fp = fopen(filename, "r");
     char  line[BUFFER_SIZE];
 
     if (fp != NULL) 
     {
-        int nAction    = 0;
-        int nActionSet = 0;
+        int action_set_ind = 0;
+        int action_ind    = 0;
+        int *n_action_set = &rackfiles[n_rackfiles].nActionSets;
         while (fgets(line, sizeof(line), fp) != NULL) 
         {
-            // if (strcmp(line, "\n") != 0)
-            //     printf("%s", line);
-
             // STORE NON-EMPTY LINES
             // if (strncmp("\n", line, strlen("\n")) != 0) // starting with a new line char
             if (strcmp(line, "\n") != 0) // is a newline character
             {
-                // int *nActionSet = &rackfiles[n_rackfiles].nActionSets;
-                // int *nAction    = &rackfiles[n_rackfiles].actionSets[*nActionSet].nActions;
                 // printf(" -> %i\n", *nActionSet);
                 int commentCharIndex = char_at(line, '#');
 
@@ -237,33 +258,38 @@ void parse_file(char *filename)
                 // IF LINE STARTS WITH actionset, GET AND STORE Action
                 else if (strncmp("actionset", line, strlen("actionset")) == 0)
                 {
-                    strcpy(rackfiles[n_rackfiles].actionSets[nActionSet].actionName, line);
-                    rackfiles[n_rackfiles].actionSets[ max( nActionSet - 1, 0 ) ].nActions = nAction;
-                    nAction = 0;
-                    nActionSet++;
+                    // SAVE ACTION SET
+                    if (action_set_ind + 1 == *n_action_set)
+                    {
+                        rackfiles[n_rackfiles].actionSets[ action_set_ind ].nActions = action_ind;
+                        action_set_ind++;
+                    }
+                    action_ind = 0;
+                    (*n_action_set)++;
+                    int end_of_action_set = char_at(line, ':');
+                    strncpy(rackfiles[n_rackfiles].actionSets[action_set_ind].actionName, line, end_of_action_set);
+                    // strcpy(rackfiles[n_rackfiles].actionSets[action_set_ind].actionName, line);
                 }
                 // IF THERE IS A COMMENT SYMBOL, STORE ENTIRE LINE UNTIL FIRST '#'
                 else if (commentCharIndex != -1)
                 {
-                    strncpy(rackfiles[n_rackfiles].actionSets[ max( nActionSet - 1, 0 ) ].actions[nAction], line, commentCharIndex);
-                    strcat(rackfiles[n_rackfiles].actionSets[ max( nActionSet - 1, 0 ) ].actions[nAction], "\n");
-                    printf("~ %s\n", rackfiles[n_rackfiles].actionSets[ max( nActionSet - 1, 0 ) ].actions[nAction]);
-                    nAction++;
+                    strncpy(rackfiles[n_rackfiles].actionSets[ action_set_ind ].actions[action_ind], line, commentCharIndex);
+                    strcat(rackfiles[n_rackfiles].actionSets[ action_set_ind ].actions[action_ind], "\n");
+                    action_ind++;
                 }
                 // STORE ENTIRE LINE
                 else
                 {
                     trim_leading(line);
-                    strcpy(rackfiles[n_rackfiles].actionSets[ max( nActionSet - 1, 0 ) ].actions[nAction], line);
-                    printf("~ %s\n", rackfiles[n_rackfiles].actionSets[ max( nActionSet - 1, 0 ) ].actions[nAction]);
-                    nAction++;
+                    strcpy(rackfiles[n_rackfiles].actionSets[ action_set_ind ].actions[action_ind], line);
+                    action_ind++;
                 }
             }
         }
         fclose(fp);
-        rackfiles[n_rackfiles].nActionSets = nActionSet;
-        rackfiles[n_rackfiles].actionSets[ max( nActionSet - 1, 0 ) ].nActions = nAction;
+        rackfiles[n_rackfiles].actionSets[ action_set_ind ].nActions = action_ind;
         n_rackfiles++;
+        printf("-- %i\n", n_rackfiles);
     }
 }
 
@@ -282,15 +308,13 @@ void list_directory(char *ignorefile, char *dirname)
 
     if (dirp != NULL) 
     {
-        int ind = 0;
         while ((dp = readdir(dirp)) != NULL) 
         {  
             if (dp->d_type != DT_DIR && !strstr(dp->d_name, ignorefile))
             // if (!strstr(dp->d_name, ".") && !strstr(dp->d_name, "..") && !strstr(dp->d_name, ignorefile))
             {
                 printf(" - %s\n", dp->d_name );
-                files_in_dir[ind++] = dp->d_name;
-                n_files_in_dir++;
+                files_in_dir[n_files_in_dir++] = dp->d_name;
             }
         }
         closedir(dirp);
@@ -308,11 +332,14 @@ int main(int argc, char *argv[])
 
     printf(CYN);
 
+    char file_path[MAX_FILE_NAME];
+
     // READ FROM CURRENT DIRECTORY
     if (argc == 1)
     {
         printf("Found files at current directory:\n");
         list_directory(progname, ".");
+        strcpy(file_path, "");
     }
 
     // READ FROM SPECIFIED DIRECTORY ( FROM COMMAND LINE ARGS )
@@ -320,18 +347,30 @@ int main(int argc, char *argv[])
     {
         printf("Found files at %s:\n", argv[1]);
         list_directory(progname, argv[1]);
+        strcpy(file_path, argv[1]);
     }
 
     printf(RESET); printf("\n");
 
     // EXTRACT INFO FROM EACH FILE
     for (int i=0 ; i<n_files_in_dir ; i++)
-        parse_file(files_in_dir[i]);
+    {
+        char temp[MAX_FILE_NAME] = "";
+        strcat(temp, file_path);
+        strcat(temp, files_in_dir[i]);
+        parse_file( temp );
+    }
 
     // DEBUGGING
     printf(YEL);
-    read_rackfile();
+    debug_rackfile();
     printf(RESET);
+
+    // EXECUTING
+    printf(GRN);
+    execute_all();
+    printf(RESET);
+
 
     printf("\n");
     return EXIT_SUCCESS;
