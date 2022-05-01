@@ -119,7 +119,10 @@ int min(int x, int y)
 
 int max(int x, int y)
 {
-    return (x > y ? x : y);
+    if (x > y)
+        return x;
+    return y;
+    // return (x > y ? x : y);
 }
 
 
@@ -235,7 +238,7 @@ void parse_file(char *filename)
                 else if (strncmp("actionset", line, strlen("actionset")) == 0)
                 {
                     strcpy(rackfiles[n_rackfiles].actionSets[nActionSet].actionName, line);
-                    rackfiles[n_rackfiles].actionSets[nActionSet].nActions = nAction;
+                    rackfiles[n_rackfiles].actionSets[ max( nActionSet - 1, 0 ) ].nActions = nAction;
                     nAction = 0;
                     nActionSet++;
                 }
@@ -244,6 +247,7 @@ void parse_file(char *filename)
                 {
                     strncpy(rackfiles[n_rackfiles].actionSets[ max( nActionSet - 1, 0 ) ].actions[nAction], line, commentCharIndex);
                     strcat(rackfiles[n_rackfiles].actionSets[ max( nActionSet - 1, 0 ) ].actions[nAction], "\n");
+                    printf("~ %s\n", rackfiles[n_rackfiles].actionSets[ max( nActionSet - 1, 0 ) ].actions[nAction]);
                     nAction++;
                 }
                 // STORE ENTIRE LINE
@@ -251,12 +255,14 @@ void parse_file(char *filename)
                 {
                     trim_leading(line);
                     strcpy(rackfiles[n_rackfiles].actionSets[ max( nActionSet - 1, 0 ) ].actions[nAction], line);
+                    printf("~ %s\n", rackfiles[n_rackfiles].actionSets[ max( nActionSet - 1, 0 ) ].actions[nAction]);
                     nAction++;
                 }
             }
         }
         fclose(fp);
         rackfiles[n_rackfiles].nActionSets = nActionSet;
+        rackfiles[n_rackfiles].actionSets[ max( nActionSet - 1, 0 ) ].nActions = nAction;
         n_rackfiles++;
     }
 }
@@ -277,9 +283,10 @@ void list_directory(char *ignorefile, char *dirname)
     if (dirp != NULL) 
     {
         int ind = 0;
-        while((dp = readdir(dirp)) != NULL) 
+        while ((dp = readdir(dirp)) != NULL) 
         {  
-            if(dp->d_type != DT_DIR && !strstr(dp->d_name, ignorefile))
+            if (dp->d_type != DT_DIR && !strstr(dp->d_name, ignorefile))
+            // if (!strstr(dp->d_name, ".") && !strstr(dp->d_name, "..") && !strstr(dp->d_name, ignorefile))
             {
                 printf(" - %s\n", dp->d_name );
                 files_in_dir[ind++] = dp->d_name;
