@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 # Function that receives a filename and then returns a list of lines in that file.
 def fread(filename):
@@ -21,10 +22,11 @@ def fread(filename):
 		count += 1
 	return lines
 
+
 # Function that converts all items in a list to a dictionary, which is then returned.	
 def dict_process(items):
 	
-	# Dictionary holding the port number, a 1D array of hosts and a series of 2D action set arrays.
+	# Dictionary holding the port number, a 1D array of hosts and a 2D array of action sets.
 	item_dictionary = {'Port': '', 'Hosts': []}
 	
 	# variables for the action set
@@ -68,15 +70,61 @@ def dict_process(items):
 			
 	return item_dictionary
 
-def main():
-	arr = os.listdir()	# array of all files in the client folder.
-	for item in arr:
-		if not item == 'client-p.py' and not os.stat(item).st_size == 0:
-			s_list = fread(item)
-			rake_dict = dict_process(s_list)
-			print('\n', 'This is what was in the file\n', s_list)
-			print('\n', 'This is a dictionary of the port, hosts and action sets\n',rake_dict)
+
+# Function that receives a dictionary and executes all actionsets within it.
+def execute_action_sets(rdictionary):
+	actionsets = []	# List holding all the action sets.
 	
+	for key in rdictionary:
+		if key.find('Action Set ') >= 0:
+			actionsets.append(key)
+			
+	print('\n', 'This is the action sets about to be executed\n', actionsets, '\n')
+	
+	for actionset in actionsets:
+		for action in rdictionary[actionset]:
+			if len(action) == 1:
+				os.system(action[0])
+			
+			if len(action) == 2:
+				arguments = action[0].split()
+				action[1] = action[1].lstrip('requires ')
+				required = action[1].split()
+				
+				output = subprocess.run(arguments, capture_output = True)
+				print(output)
+				print('\n')
+				
+				
+	
+	return actionsets
+
+
+####################################################################################################
+
+
+def main():
+	directory = os.getcwd()	# The working directory.
+	rakefiles = []			# Will be used to store rakefiles.
+	
+	
+	# Reading the working directory and it's subdirectories for rakefiles.
+	for r, d, f in os.walk(directory):
+		for file in f:
+			if not '.' in file and not 'Make' in file and not os.path.getsize(file) == 0:
+				rakefiles.append(os.path.join(r, file))
+		
+	for item in rakefiles:
+		print('\n', 'Looking at this file: ', item)
+		
+		s_list = fread(item)
+		print('\n', 'This is what was in the file\n', s_list)
+			
+		rake_dict = dict_process(s_list)
+		print('\n', 'This is a dictionary of the port, hosts and action sets\n',rake_dict)
+			
+		a_sets = execute_action_sets(rake_dict)
+			
 main()
 
 # NOTE: SHOULD WORK WITH `python3 client-p.py`
