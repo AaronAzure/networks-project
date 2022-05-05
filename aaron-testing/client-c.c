@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include  <unistd.h>
+#include  <sys/wait.h>
 
 #include  <string.h>
 #include  <sys/types.h>
@@ -12,6 +14,7 @@
 #define     MAX_ACTIONS                 32
 #define     BUFFER_SIZE                 512
 #define     MAX_FILE_NAME               64
+#define     MAX_LINE_LENGTH             1024
 
 #define     RED                         "\033[0;31m"
 #define     GRN                         "\033[0;32m"
@@ -39,6 +42,7 @@ typedef struct ActionSet
 typedef struct Rackfile
 {
     int         port;
+    char        filename[MAX_FILE_NAME];
 
     int         nHosts;
     char        hosts[MAX_HOSTS][BUFFER_SIZE];
@@ -48,6 +52,10 @@ typedef struct Rackfile
     // char    actions[BUFFER_SIZE][BUFFER_SIZE];   //  each VALID line
 } Rackfile;
 
+
+extern int errno ;
+
+char file_path[MAX_FILE_NAME];
 
 int n_files_in_dir = 0;
 char *files_in_dir[MAX_FILES_TO_PROCESS];
@@ -142,9 +150,37 @@ int char_at(char *line, char toFind)
 }
 
 
-void execute_action(char *command)
+int execute_action(char *command)
 {
-    system(command);
+    return system(command);
+    // switch( system(command) )
+    // {
+    //     // ERROR
+    //     case -1: 
+            
+    //         break;
+    //     default:
+    //         break;
+    // }
+    // int pid = fork();
+    // switch(fork())
+    // {
+    //     case -1:    // failure
+    //         break;
+    //     case 0:     // child
+    //         execv(command);
+    //         exit(EXIT_FAILURE);
+    //         break;
+    //     default:    // orig
+    //         int child, status;
+
+    //         printf("parent waiting\n");
+    //         child = wait( &status );
+
+    //         printf("process pid=%i terminated with exit status=%i\n",
+    //                 child, WEXITSTATUS(status) );
+    //         break;
+    // }
 }
 
 
@@ -152,12 +188,38 @@ void execute_all()
 {
     for (int i=0 ; i<n_rackfiles ; i++)
     {
-        printf("EXECUTING\n");
+        printf("EXECUTING  -  %s\n", rackfiles[i].filename);
+        bool error_in_actionset = false;
 
         // ACTIONSETS
-        for (int k=0 ; k<rackfiles[i].nActionSets ; k++)
-            for (int a=0 ; a<rackfiles[i].actionSets[k].nActions ; a++)
-                execute_action(rackfiles[i].actionSets[k].actions[a]);
+        for (int k=0 ; k<rackfiles[i].nActionSets && !error_in_actionset ; k++)
+        {
+            // ACTIONs IN ACTIONSETS
+            for (int a=0 ; a<rackfiles[i].actionSets[k].nActions && !error_in_actionset ; a++)
+            {
+                // execute_action(rackfiles[i].actionSets[k].actions[a]);
+                int return_code = execute_action(rackfiles[i].actionSets[k].actions[a]);
+                printf("  -> %i\n", return_code);
+
+                if (return_code == -1 || return_code == 65280)
+                {
+                    int errnum;
+                    errnum = errno;
+                    fprintf(stderr, "Value of errno: %d\n", errno);
+                    perror("Error printed by perror");
+                    fprintf(stderr, "Error opening file: %s\n", strerror( errnum ));
+                }
+                
+                // IF THERE IS AN ERROR IN RUNNING ACTION, SKIP
+                // if (return_code != 0)
+                // {
+                //     printf(RED);
+                //     printf("ERROR: %s\n", rackfiles[i].actionSets[k].actions[a]);
+                //     printf(GRN);
+                //     error_in_actionset = true;
+                // }
+            }
+        }
 
         printf("\n\n");
     }
@@ -217,6 +279,7 @@ void parse_file(char *filename)
 
     if (fp != NULL) 
     {
+        strcpy(rackfiles[n_rackfiles].filename, filename);
         int action_set_ind = 0;
         int action_ind    = 0;
         int *n_action_set = &rackfiles[n_rackfiles].nActionSets;
@@ -289,7 +352,10 @@ void parse_file(char *filename)
         fclose(fp);
         rackfiles[n_rackfiles].actionSets[ action_set_ind ].nActions = action_ind;
         n_rackfiles++;
-        printf("-- %i\n", n_rackfiles);
+    }
+    else
+    {
+        printf("!! ERROR: could not open %s\n", filename);
     }
 }
 
@@ -310,8 +376,8 @@ void list_directory(char *ignorefile, char *dirname)
     {
         while ((dp = readdir(dirp)) != NULL) 
         {  
-            if (dp->d_type != DT_DIR && !strstr(dp->d_name, ignorefile))
-            // if (!strstr(dp->d_name, ".") && !strstr(dp->d_name, "..") && !strstr(dp->d_name, ignorefile))
+            // if (dp->d_type != DT_DIR && !strstr(dp->d_name, ignorefile))
+            if (!strstr(dp->d_name, ".") && !strstr(dp->d_name, "..") && !strstr(dp->d_name, ignorefile))
             {
                 printf(" - %s\n", dp->d_name );
                 files_in_dir[n_files_in_dir++] = dp->d_name;
@@ -332,8 +398,6 @@ int main(int argc, char *argv[])
 
     printf(CYN);
 
-    char file_path[MAX_FILE_NAME];
-
     // READ FROM CURRENT DIRECTORY
     if (argc == 1)
     {
@@ -348,6 +412,7 @@ int main(int argc, char *argv[])
         printf("Found files at %s:\n", argv[1]);
         list_directory(progname, argv[1]);
         strcpy(file_path, argv[1]);
+        strcat(file_path, "/");
     }
 
     printf(RESET); printf("\n");
@@ -358,6 +423,7 @@ int main(int argc, char *argv[])
         char temp[MAX_FILE_NAME] = "";
         strcat(temp, file_path);
         strcat(temp, files_in_dir[i]);
+
         parse_file( temp );
     }
 
