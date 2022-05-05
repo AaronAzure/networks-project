@@ -5,6 +5,7 @@
 
 import os
 import subprocess
+import sys
 
 # Function that receives a filename and then returns a list of lines in that file.
 def fread(filename):
@@ -114,7 +115,9 @@ def execute_action_sets(rdictionary):
 				print(output)
 				print('\n')
 				
-				
+				if not subprocess.call(arguments) == 0:
+					print('\n')
+					return	None
 	
 	return actionsets
 
@@ -134,12 +137,16 @@ def main():
 	rakefiles = []			# Will be used to store rakefiles.
 	
 	
-	# Reading the working directory and it's subdirectories for rakefiles.
-	for r, d, f in os.walk(directory):
-		for file in f:
-			if not '.' in file and not 'Make' in file and not os.path.getsize(file) == 0:
-				if not 'program' in file:
-					rakefiles.append(os.path.join(r, file))
+	if len(sys.argv) == 2:
+		rakefiles.append(sys.argv[1])
+	
+	elif len(sys.argv) == 1:
+		# Reading the working directory and it's subdirectories for rakefiles.
+		for r, d, f in os.walk(directory):
+			for file in f:
+				if not '.' in file and not 'Make' in file and not os.path.getsize(file) == 0:
+					if not 'program' in file:
+						rakefiles.append(os.path.join(r, file))
 		
 	for item in rakefiles:
 		print('\n', 'Looking at this file: ', item)
