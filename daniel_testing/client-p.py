@@ -44,10 +44,11 @@ def dict_process(items):
 			item = item.replace('HOSTS = ', '')
 			item_dictionary['Hosts'] = item.split(' ', item.count(' '))
 			
-		if item.find('actionset' + str(count) + ':') >= 0:
+		if+ item.find('actionset' + str(count) + ':') >= 0:
 			item_dictionary['Action Set ' + str(count)] = []
 			count += 1
 		
+		#Note to self: Do
 		if item.count('\t') == 1:
 			if len(action) == 1:
 				item_dictionary['Action Set ' + str(count - 1)].append(action)
@@ -117,7 +118,7 @@ def execute_action_sets(rdictionary):
 				
 				if not subprocess.call(arguments) == 0:
 					print('\n')
-					return	None
+					return
 	
 	return actionsets
 
@@ -133,12 +134,12 @@ def file_path(filename):
 
 
 def main():
-	directory = os.getcwd()	# The working directory.
-	rakefiles = []			# Will be used to store rakefiles.
 	
+	directory = os.getcwd()	# The working directory.
+	rakefile  = ''			# Will be used to store rakefiles.
 	
 	if len(sys.argv) == 2:
-		rakefiles.append(sys.argv[1])
+		rakefile = sys.argv[1]
 	
 	elif len(sys.argv) == 1:
 		# Reading the working directory and it's subdirectories for rakefiles.
@@ -146,18 +147,18 @@ def main():
 			for file in f:
 				if not '.' in file and not 'Make' in file and not os.path.getsize(file) == 0:
 					if not 'program' in file:
-						rakefiles.append(os.path.join(r, file))
+						rakefile = os.path.join(r, file)
 		
-	for item in rakefiles:
-		print('\n', 'Looking at this file: ', item)
+	
+	print('\n', 'Looking at this file: ', rakefile)
 		
-		s_list = fread(item)
-		print('\n', 'This is what was in the file\n', s_list)
+	string_list = fread(rakefile)
+	print('\n', 'This is what was in the file\n', string_list)
 			
-		rake_dict = dict_process(s_list)
-		print('\n', 'This is a dictionary of the port, hosts and action sets\n',rake_dict)
+	rake_dict = dict_process(string_list)
+	print('\n', 'This is a dictionary of the port, hosts and action sets\n',rake_dict)
 			
-		a_sets = execute_action_sets(rake_dict)
+	a_sets = execute_action_sets(rake_dict)
 			
 main()
 
