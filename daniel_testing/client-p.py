@@ -6,6 +6,7 @@
 import os
 import subprocess
 import sys
+import socket
 
 # Function that receives a filename and then returns a list of lines in that file.
 def fread(filename):
@@ -135,7 +136,37 @@ def file_path(filename):
 
 
 def main():
-	
+	server_addr = ('localhost', 12345)
+	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+	try:
+		s.connect(server_addr)
+		print("Connected to {:s}".format(repr(server_addr)))
+
+		# for i in range(5):
+		# 	print("")
+		# 	# payload_out = Payload(1, i, random.uniform(-10, 30))
+		# 	print("Sending id={:d}, counter={:d}, temp={:f}".format(payload_out.id,
+		# 														payload_out.counter,
+		# 														payload_out.temp))
+		# 	# nsent = s.send(payload_out)
+		# 	# Alternative: s.sendall(...): coontinues to send data until either
+		# 	# all data has been sent or an error occurs. No return value.
+		# 	print("Sent {:d} bytes".format(nsent))
+
+		# 	# buff = s.recv(sizeof(Payload))
+		# 	# payload_in = Payload.from_buffer_copy(buff)
+		# 	print("Received id={:d}, counter={:d}, temp={:f}".format(payload_in.id,
+		# 														payload_in.counter,
+		# 														payload_in.temp))
+	except AttributeError as ae:
+		print("Error creating the socket: {}".format(ae))
+	except socket.error as se:
+		print("Exception on socket: {}".format(se))
+	finally:
+		print("Closing socket")
+		s.close()
+
 	directory = os.getcwd()	# The working directory.
 	rakefile  = 'Rakefile'	# Will be used to store rakefile.
 	

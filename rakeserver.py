@@ -9,7 +9,7 @@ def main():
     local_ip = socket.gethostbyname("localhost")
 
     # A TCP based echo server
-    echo_socket = socket.socket()
+    echo_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
  
     # Bind the IP address and the port number
     echo_socket.bind((str(local_ip), port_num))
@@ -27,7 +27,7 @@ def main():
         # Handle one request from client
         while(True):
             data = clientSocket.recv(1024)
-            print("At Server: %s"%data)
+            print("At Server: %s" % data)
 
             if(data!=b''):
                 # Send back what you received
