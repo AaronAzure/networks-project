@@ -16,8 +16,8 @@ def fread(filename):
 	count = 0
 	for line in lines:
 		
-		if line.find('#') >= 0:	# strip '#' and all characters after it from that line
-		
+		# strip '#' and all characters after it from that line
+		if line.find('#') >= 0:	
 			split_string = line.split('#', 1)
 			lines[count] = split_string[0]
 		
@@ -58,6 +58,8 @@ def dict_process(items):
 				action.append(item.strip())
 		
 		if item.count('\t') == 2:
+			# req_files = item.split('requires ',1)[1].split(' ')
+			# action.append(req_files)
 			action.append(item.strip())
 			item_dictionary['Action Set ' + str(count - 1)].append(action)
 			action = []
@@ -102,7 +104,6 @@ def execute_action_sets(rdictionary):
 				
 				if arguments[0].find('remote') < 0: # Non-remote compiling.
 					for argument in arguments:
-					
 						path = None
 						
 						if argument.find('.') >= 0:
@@ -136,19 +137,10 @@ def file_path(filename):
 def main():
 	
 	directory = os.getcwd()	# The working directory.
-	rakefile  = ''			# Will be used to store rakefiles.
+	rakefile  = 'Rakefile'	# Will be used to store rakefile.
 	
 	if len(sys.argv) == 2:
 		rakefile = sys.argv[1]
-	
-	elif len(sys.argv) == 1:
-		# Reading the working directory and it's subdirectories for rakefiles.
-		for r, d, f in os.walk(directory):
-			for file in f:
-				if not '.' in file and not 'Make' in file and not os.path.getsize(file) == 0:
-					if not 'program' in file:
-						rakefile = os.path.join(r, file)
-		
 	
 	print('\n', 'Looking at this file: ', rakefile)
 		

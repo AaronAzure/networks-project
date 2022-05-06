@@ -2,6 +2,7 @@ import socket
 
 # port number
 port_num = 12345
+socket_num = 0
 
 
 def main():
@@ -14,7 +15,7 @@ def main():
     echo_socket.bind((str(local_ip), port_num))
 
     print("IP address = " + str(local_ip))
-    print("listening on port=" + str(port_num) + ", sd=" + "\n")
+    print("listening on port=" + str(port_num) + ", sd=" + str(socket_num) + "\n")
 
     # Listen for incoming connections
     echo_socket.listen()
