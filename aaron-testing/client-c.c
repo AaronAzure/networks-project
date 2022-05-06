@@ -12,6 +12,8 @@
 #define     MAX_FILES_TO_PROCESS        128
 #define     MAX_HOSTS                   32
 #define     MAX_ACTIONS                 32
+#define     MAX_ACTIONSETS              32
+#define     MAX_REQUIREMENTS            32
 #define     BUFFER_SIZE                 512
 #define     MAX_FILE_NAME               64
 #define     MAX_LINE_LENGTH             1024
@@ -32,10 +34,11 @@
 
 typedef struct Action
 {
-    char    actions[BUFFER_SIZE];
+    char    action[BUFFER_SIZE];
+    bool    isLocal;
     
-    int     nRequirements;
-    char    requirements[BUFFER_SIZE][BUFFER_SIZE];
+    int     nRequiredFiles;
+    char    requiredFiles[MAX_REQUIREMENTS][BUFFER_SIZE];
 } Action;
 
 
@@ -44,7 +47,7 @@ typedef struct ActionSet
     char    actionSetName[BUFFER_SIZE];
     
     int     nActions;
-    char    actions[BUFFER_SIZE][BUFFER_SIZE];   //  each VALID line
+    Action  actions[MAX_ACTIONS];
 } ActionSet;
 
 
@@ -57,7 +60,7 @@ typedef struct Rackfile
     char        hosts[MAX_HOSTS][BUFFER_SIZE];
 
     int         nActionSets;
-    ActionSet   actionSets[MAX_ACTIONS];    //! ERROR
+    ActionSet   actionSets[MAX_ACTIONSETS];    //! ERROR
 } Rackfile;
 
 
@@ -96,6 +99,16 @@ void trim_leading(char *str)
         // MAKE SURE THAT STRING IS NULL TERMINATED
         str[i] = '\0'; 
     }
+}
+
+int count_leading_tabs(char *string)
+{
+    int index = 0;
+
+    while (string[index] == '\t')
+        index++;
+    
+    return index;
 }
 
 
@@ -160,12 +173,12 @@ void execute_all()
     bool error_in_actionset = false;
 
     // ACTIONSETS
-    for (int k=0 ; k<rackfile.nActionSets && !error_in_actionset ; k++)
+    for (int i=0 ; i<rackfile.nActionSets && !error_in_actionset ; i++)
     {
         // ACTIONs IN ACTIONSETS
-        for (int a=0 ; a<rackfile.actionSets[k].nActions && !error_in_actionset ; a++)
+        for (int a=0 ; a<rackfile.actionSets[i].nActions && !error_in_actionset ; a++)
         {
-            int return_code = system(rackfile.actionSets[k].actions[a]);
+            int return_code = system(rackfile.actionSets[i].actions[a].action);
             // printf("  -> %i\n", return_code);
 
                 // int errnum;
@@ -174,11 +187,11 @@ void execute_all()
                 // perror("Error printed by perror");
                 // fprintf(stderr, "Error opening file: %s\n", strerror( errnum ));
             
-            // IF THERE IS AN ERROR IN RUNNING ACTION, STOP FOLLOWING ACTIONS
+            // // IF THERE IS AN ERROR IN RUNNING ACTION, STOP FOLLOWING ACTIONS
             if (return_code != 0)
             {
                 printf(RED);
-                printf("ERROR: %s\n", rackfile.actionSets[k].actions[a]);
+                printf("ERROR: %s\n", rackfile.actionSets[i].actions[a].action);
                 printf(GRN);
                 error_in_actionset = true;
             }
@@ -209,11 +222,19 @@ void debug_rackfile()
         printf(" - %s\n", rackfile.hosts[h]);
 
     // ACTIONSETS
-    for (int k=0 ; k<rackfile.nActionSets ; k++)
+    for (int i=0 ; i<rackfile.nActionSets ; i++)
     {
-        printf("%s:\n", rackfile.actionSets[k].actionSetName);
-        for (int a=0 ; a<rackfile.actionSets[k].nActions ; a++)
-            printf(" - %s", rackfile.actionSets[k].actions[a]);
+        printf("%s:\n", rackfile.actionSets[i].actionSetName);
+        for (int a=0 ; a<rackfile.actionSets[i].nActions ; a++)
+        {
+            printf(" - %s", rackfile.actionSets[i].actions[a].action);
+            if (rackfile.actionSets[i].actions[a].nRequiredFiles > 0)
+            {
+                printf("  required files:\n");
+                for (int r=0 ; r<rackfile.actionSets[i].actions[a].nRequiredFiles ; r++)
+                    printf("   - %s\n", rackfile.actionSets[i].actions[a].requiredFiles[r]);
+            }
+        }
     }
 
     printf("\n\n");
@@ -244,10 +265,12 @@ void parse_file(char *filename)
         {
             // STORE NON-EMPTY LINES
             // if (strncmp("\n", line, strlen("\n")) != 0) // starting with a new line char
-            if (strcmp(line, "\n") != 0) // is a newline character
+            if (!starts_with(line, "\n")) // is a newline character
             {
-                // printf(" -> %i\n", *nActionSet);
-                int commentCharIndex = char_at(line, '#');
+                // TRIM UNTIL COMMENT SYMBOL
+                char *ptr = strchr(line, '#');
+                if (ptr != NULL) 
+                    *ptr = '\0';
 
                 // IF LINE STARTS WITH PORT, GET AND STORE PORT NUMBER
                 if (starts_with(line, "PORT"))
@@ -289,19 +312,44 @@ void parse_file(char *filename)
                     int end_of_action_set = char_at(line, ':');
                     strncpy(rackfile.actionSets[action_set_ind].actionSetName, line, end_of_action_set);
                 }
-                // IF THERE IS A COMMENT SYMBOL, STORE ENTIRE LINE UNTIL FIRST '#'
-                else if (commentCharIndex != -1)
+                else 
                 {
-                    strncpy(rackfile.actionSets[ action_set_ind ].actions[action_ind], line, commentCharIndex);
-                    strcat(rackfile.actionSets[ action_set_ind ].actions[action_ind], "\n");
-                    action_ind++;
-                }
-                // STORE ENTIRE LINE
-                else
-                {
-                    trim_leading(line);
-                    strcpy(rackfile.actionSets[ action_set_ind ].actions[action_ind], line);
-                    action_ind++;
+                    switch (count_leading_tabs(line))
+                    {
+                        case 1: // ACTION LINE
+
+                            trim_leading(line);
+                            
+                            if (starts_with(line, "remote"))
+                                rackfile.actionSets[ action_set_ind ].actions[action_ind].isLocal = true;
+                            strcpy(rackfile.actionSets[ action_set_ind ].actions[action_ind++].action, line);
+
+                            break;
+
+                        case 2: // REQUIREMENT LINE
+
+                            action_ind--;
+                            trim_leading(line);
+                            int len = strlen("requires");
+                            char *substring = line;
+                            substring += len;
+
+                            const char *delimiter = " ";
+                            char *token = strtok(substring, delimiter);
+                            
+                            // loop through the string to extract all other tokens
+                            int *n_required_files = &rackfile.actionSets[ action_set_ind ].actions[action_ind].nRequiredFiles;
+                            while ( token != NULL ) 
+                            {
+                                strcpy(rackfile.actionSets[ action_set_ind ].actions[action_ind].requiredFiles[(*n_required_files)++], token);
+                                token = strtok(NULL, delimiter);
+                            }
+                            action_ind++;
+                            break;
+
+                        default:
+                            break;
+                    }
                 }
             }
         }
