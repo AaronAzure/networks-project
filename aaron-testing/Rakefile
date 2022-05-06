@@ -1,0 +1,10 @@
+
+
+PORT  = 12345
+HOSTS = localhost #vkajdslm
+
+actionset1: #potato
+	echo starting actionset1
+	cal
+		requires client-c.c potato.c
+	remote-cal
