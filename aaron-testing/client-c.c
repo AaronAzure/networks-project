@@ -30,9 +30,18 @@
 // ----------------------- GLOBAL VARIABLES --------------------------
 
 
+typedef struct Action
+{
+    char    actions[BUFFER_SIZE];
+    
+    int     nRequirements;
+    char    requirements[BUFFER_SIZE][BUFFER_SIZE];
+} Action;
+
+
 typedef struct ActionSet
 {
-    char    actionName[BUFFER_SIZE];
+    char    actionSetName[BUFFER_SIZE];
     
     int     nActions;
     char    actions[BUFFER_SIZE][BUFFER_SIZE];   //  each VALID line
@@ -49,7 +58,6 @@ typedef struct Rackfile
 
     int         nActionSets;
     ActionSet   actionSets[MAX_ACTIONS];    //! ERROR
-    // char    actions[BUFFER_SIZE][BUFFER_SIZE];   //  each VALID line
 } Rackfile;
 
 
@@ -57,11 +65,7 @@ extern int errno ;
 
 char file_path[MAX_FILE_NAME];
 
-int n_files_in_dir = 0;
-char *files_in_dir[MAX_FILES_TO_PROCESS];
-
-int n_rackfiles = 0;
-Rackfile rackfiles[MAX_FILES_TO_PROCESS];
+Rackfile rackfile;
 
 
 // -------------------------------------------------------------------
@@ -72,7 +76,7 @@ Rackfile rackfiles[MAX_FILES_TO_PROCESS];
  * 
  * @param str - string to remove leading whitespace characters
  */
-void trim_leading(char * str)
+void trim_leading(char *str)
 {
     int index, i;
     index = 0;
@@ -98,15 +102,15 @@ void trim_leading(char * str)
 /**
  * @brief   Get the last word of string
  * 
- * @param line      string to be analysed
+ * @param string    string to be analysed
  * @return char*    last word of string
  */
-char *get_last_word(char *line)
+char *get_last_word(char *string)
 {
     const char *delimiter = " ";
 
     // Extract the first token
-    char *token = strtok(line, delimiter);
+    char *token = strtok(string, delimiter);
     char *last_word = NULL;
     
     // loop through the string to extract all other tokens
@@ -120,109 +124,68 @@ char *get_last_word(char *line)
 }
 
 
-int min(int x, int y)
-{
-    return (x < y ? x : y);
-}
-
-int max(int x, int y)
-{
-    if (x > y)
-        return x;
-    return y;
-    // return (x > y ? x : y);
-}
-
 
 /**
  * @brief   Find first occurrence of specified character in string
  * 
- * @param line      string to be analysed
- * @param toFind    character to be found
+ * @param string    string to be analysed
+ * @param substring character to be found
  * @return int      index of first occurrence of specified character
  */
-int char_at(char *line, char toFind)
+int char_at(char *string, char substring)
 {
-    char *ptr = strchr(line, toFind);
+    char *ptr = strchr(string, substring);
     if (ptr == NULL)
         return -1;
-    return ((int) (ptr - line));
+    return ((int) (ptr - string));
 }
 
-
-int execute_action(char *command)
+/**
+ * @brief   Check if @param string starts with @param substring
+ * 
+ * @param string    
+ * @param substring 
+ * @return true 
+ * @return false 
+ */
+bool starts_with(char *string, char *substring)
 {
-    return system(command);
-    // switch( system(command) )
-    // {
-    //     // ERROR
-    //     case -1: 
-            
-    //         break;
-    //     default:
-    //         break;
-    // }
-    // int pid = fork();
-    // switch(fork())
-    // {
-    //     case -1:    // failure
-    //         break;
-    //     case 0:     // child
-    //         execv(command);
-    //         exit(EXIT_FAILURE);
-    //         break;
-    //     default:    // orig
-    //         int child, status;
-
-    //         printf("parent waiting\n");
-    //         child = wait( &status );
-
-    //         printf("process pid=%i terminated with exit status=%i\n",
-    //                 child, WEXITSTATUS(status) );
-    //         break;
-    // }
+    return (strncmp(string, substring, strlen(substring)) == 0);
 }
 
 
 void execute_all()
 {
-    for (int i=0 ; i<n_rackfiles ; i++)
+    printf("EXECUTING  -  %s\n", rackfile.filename);
+    bool error_in_actionset = false;
+
+    // ACTIONSETS
+    for (int k=0 ; k<rackfile.nActionSets && !error_in_actionset ; k++)
     {
-        printf("EXECUTING  -  %s\n", rackfiles[i].filename);
-        bool error_in_actionset = false;
-
-        // ACTIONSETS
-        for (int k=0 ; k<rackfiles[i].nActionSets && !error_in_actionset ; k++)
+        // ACTIONs IN ACTIONSETS
+        for (int a=0 ; a<rackfile.actionSets[k].nActions && !error_in_actionset ; a++)
         {
-            // ACTIONs IN ACTIONSETS
-            for (int a=0 ; a<rackfiles[i].actionSets[k].nActions && !error_in_actionset ; a++)
-            {
-                // execute_action(rackfiles[i].actionSets[k].actions[a]);
-                int return_code = execute_action(rackfiles[i].actionSets[k].actions[a]);
-                printf("  -> %i\n", return_code);
+            int return_code = system(rackfile.actionSets[k].actions[a]);
+            // printf("  -> %i\n", return_code);
 
-                if (return_code == -1 || return_code == 65280)
-                {
-                    int errnum;
-                    errnum = errno;
-                    fprintf(stderr, "Value of errno: %d\n", errno);
-                    perror("Error printed by perror");
-                    fprintf(stderr, "Error opening file: %s\n", strerror( errnum ));
-                }
-                
-                // IF THERE IS AN ERROR IN RUNNING ACTION, SKIP
-                // if (return_code != 0)
-                // {
-                //     printf(RED);
-                //     printf("ERROR: %s\n", rackfiles[i].actionSets[k].actions[a]);
-                //     printf(GRN);
-                //     error_in_actionset = true;
-                // }
+                // int errnum;
+                // errnum = errno;
+                // fprintf(stderr, "Value of errno: %d\n", errno);
+                // perror("Error printed by perror");
+                // fprintf(stderr, "Error opening file: %s\n", strerror( errnum ));
+            
+            // IF THERE IS AN ERROR IN RUNNING ACTION, STOP FOLLOWING ACTIONS
+            if (return_code != 0)
+            {
+                printf(RED);
+                printf("ERROR: %s\n", rackfile.actionSets[k].actions[a]);
+                printf(GRN);
+                error_in_actionset = true;
             }
         }
-
-        printf("\n\n");
     }
+
+    printf("\n\n");
 }
 
 
@@ -236,30 +199,24 @@ void execute_all()
  */
 void debug_rackfile()
 {
-    for (int i=0 ; i<n_rackfiles ; i++)
+
+    // PORT NUMBER
+    printf("port num:\n - %i\n", rackfile.port);
+
+    // HOST(S)
+    printf("hosts:\n");
+    for (int h=0 ; h<rackfile.nHosts ; h++)
+        printf(" - %s\n", rackfile.hosts[h]);
+
+    // ACTIONSETS
+    for (int k=0 ; k<rackfile.nActionSets ; k++)
     {
-        printf("Analysing %s\n", files_in_dir[i]);
-
-        // PORT NUMBER
-        printf("port num:\n - %i\n", rackfiles[i].port);
-
-        // HOST(S)
-        printf("hosts:\n");
-        for (int h=0 ; h<rackfiles[i].nHosts ; h++)
-            printf(" - %s\n", rackfiles[i].hosts[h]);
-
-        // ACTIONSETS
-        for (int k=0 ; k<rackfiles[i].nActionSets ; k++)
-        {
-            printf("%s:\n", rackfiles[i].actionSets[k].actionName);
-            // printf("%s (%i)", rackfiles[i].actionSets[k].actionName, rackfiles[i].actionSets[k].nActions);
-            for (int a=0 ; a<rackfiles[i].actionSets[k].nActions ; a++)
-                printf(" - %s", rackfiles[i].actionSets[k].actions[a]);
-                // printf("%s", rackfiles[i].actions[a]);
-        }
-
-        printf("\n\n");
+        printf("%s:\n", rackfile.actionSets[k].actionSetName);
+        for (int a=0 ; a<rackfile.actionSets[k].nActions ; a++)
+            printf(" - %s", rackfile.actionSets[k].actions[a]);
     }
+
+    printf("\n\n");
 }
 
 
@@ -279,10 +236,10 @@ void parse_file(char *filename)
 
     if (fp != NULL) 
     {
-        strcpy(rackfiles[n_rackfiles].filename, filename);
+        strcpy(rackfile.filename, filename);
         int action_set_ind = 0;
         int action_ind    = 0;
-        int *n_action_set = &rackfiles[n_rackfiles].nActionSets;
+        int *n_action_set = &rackfile.nActionSets;
         while (fgets(line, sizeof(line), fp) != NULL) 
         {
             // STORE NON-EMPTY LINES
@@ -293,14 +250,14 @@ void parse_file(char *filename)
                 int commentCharIndex = char_at(line, '#');
 
                 // IF LINE STARTS WITH PORT, GET AND STORE PORT NUMBER
-                if (strncmp("PORT", line, strlen("PORT")) == 0)
+                if (starts_with(line, "PORT"))
                 {
                     char *last_word = NULL;
                     last_word = get_last_word(line);
-                    rackfiles[n_rackfiles].port = atoi(last_word);
+                    rackfile.port = atoi(last_word);
                 }
                 // IF LINE STARTS WITH HOSTS, GET AND STORE HOST(S)
-                else if (strncmp("HOSTS = ", line, strlen("HOSTS = ")) == 0)
+                else if (starts_with(line, "HOSTS"))
                 {
                     int len = strlen("HOSTS = ");
                     char *substring = line;
@@ -310,48 +267,46 @@ void parse_file(char *filename)
                     char *token = strtok(substring, delimiter);
                     
                     // loop through the string to extract all other tokens
-                    int *nHosts = &rackfiles[n_rackfiles].nHosts;
+                    int *nHosts = &rackfile.nHosts;
                     while ( token != NULL ) 
                     {
-                        strcpy(rackfiles[n_rackfiles].hosts[(*nHosts)++], token);
+                        strcpy(rackfile.hosts[(*nHosts)++], token);
                         token = strtok(NULL, delimiter);
                     }
 
                 }
                 // IF LINE STARTS WITH actionset, GET AND STORE Action
-                else if (strncmp("actionset", line, strlen("actionset")) == 0)
+                else if (starts_with(line, "actionset"))
                 {
                     // SAVE ACTION SET
                     if (action_set_ind + 1 == *n_action_set)
                     {
-                        rackfiles[n_rackfiles].actionSets[ action_set_ind ].nActions = action_ind;
+                        rackfile.actionSets[ action_set_ind ].nActions = action_ind;
                         action_set_ind++;
                     }
                     action_ind = 0;
                     (*n_action_set)++;
                     int end_of_action_set = char_at(line, ':');
-                    strncpy(rackfiles[n_rackfiles].actionSets[action_set_ind].actionName, line, end_of_action_set);
-                    // strcpy(rackfiles[n_rackfiles].actionSets[action_set_ind].actionName, line);
+                    strncpy(rackfile.actionSets[action_set_ind].actionSetName, line, end_of_action_set);
                 }
                 // IF THERE IS A COMMENT SYMBOL, STORE ENTIRE LINE UNTIL FIRST '#'
                 else if (commentCharIndex != -1)
                 {
-                    strncpy(rackfiles[n_rackfiles].actionSets[ action_set_ind ].actions[action_ind], line, commentCharIndex);
-                    strcat(rackfiles[n_rackfiles].actionSets[ action_set_ind ].actions[action_ind], "\n");
+                    strncpy(rackfile.actionSets[ action_set_ind ].actions[action_ind], line, commentCharIndex);
+                    strcat(rackfile.actionSets[ action_set_ind ].actions[action_ind], "\n");
                     action_ind++;
                 }
                 // STORE ENTIRE LINE
                 else
                 {
                     trim_leading(line);
-                    strcpy(rackfiles[n_rackfiles].actionSets[ action_set_ind ].actions[action_ind], line);
+                    strcpy(rackfile.actionSets[ action_set_ind ].actions[action_ind], line);
                     action_ind++;
                 }
             }
         }
         fclose(fp);
-        rackfiles[n_rackfiles].actionSets[ action_set_ind ].nActions = action_ind;
-        n_rackfiles++;
+        rackfile.actionSets[ action_set_ind ].nActions = action_ind;
     }
     else
     {
@@ -360,72 +315,31 @@ void parse_file(char *filename)
 }
 
 
-/**
- * @brief   Store all files ( not directories ) in specified directory
- *          for later analysis
- * 
- * @param ignorefile    files to not store
- * @param dirname       store files at specified filepath
- */
-void list_directory(char *ignorefile, char *dirname)
-{
-    DIR *dirp = opendir(dirname);
-    struct dirent   *dp;
-
-    if (dirp != NULL) 
-    {
-        while ((dp = readdir(dirp)) != NULL) 
-        {  
-            // if (dp->d_type != DT_DIR && !strstr(dp->d_name, ignorefile))
-            if (!strstr(dp->d_name, ".") && !strstr(dp->d_name, "..") && !strstr(dp->d_name, ignorefile))
-            {
-                printf(" - %s\n", dp->d_name );
-                files_in_dir[n_files_in_dir++] = dp->d_name;
-            }
-        }
-        closedir(dirp);
-    }
-}
-
-
 int main(int argc, char *argv[])
 {
     printf("\n");
 
-    // DO NOT EXAMINE PROGRAM FILE IF IN SEARCH DIRECTORY
-    char *progname = argv[0];
-    progname += 2;
-
     printf(CYN);
 
-    // READ FROM CURRENT DIRECTORY
+    // EXTRACT INFO FROM "Rakefile" IN CURRENT DIRECTORY
     if (argc == 1)
     {
         printf("Found files at current directory:\n");
-        list_directory(progname, ".");
+        parse_file("Rakefile");
         strcpy(file_path, "");
     }
 
-    // READ FROM SPECIFIED DIRECTORY ( FROM COMMAND LINE ARGS )
+    // EXTRACT INFO FROM SPECIFIED FILE ( FROM COMMAND LINE ARGS )
     else if (argc > 1)
     {
         printf("Found files at %s:\n", argv[1]);
-        list_directory(progname, argv[1]);
+        parse_file(argv[1]);
         strcpy(file_path, argv[1]);
         strcat(file_path, "/");
     }
 
     printf(RESET); printf("\n");
 
-    // EXTRACT INFO FROM EACH FILE
-    for (int i=0 ; i<n_files_in_dir ; i++)
-    {
-        char temp[MAX_FILE_NAME] = "";
-        strcat(temp, file_path);
-        strcat(temp, files_in_dir[i]);
-
-        parse_file( temp );
-    }
 
     // DEBUGGING
     printf(YEL);
