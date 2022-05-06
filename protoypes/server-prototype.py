@@ -21,15 +21,15 @@ def main():
 
     # Start accepting client connections
     while True:
-        conn, addr = echo_socket.accept()
+        client, addr = echo_socket.accept()
         from_client = ''
         while True:
-            data = conn.recv(4096)
+            data = client.recv(4096)
             if not data: 
                 break
             print(data.decode("utf-8"))
-            conn.send(bytes("I am Server","utf-8"))
-        conn.close()
+            client.send(bytes("I am Server","utf-8"))
+        client.close()
         print('client disconnected')
 
 if __name__ == "__main__":

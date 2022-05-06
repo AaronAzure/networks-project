@@ -8,6 +8,9 @@ import subprocess
 import sys
 import socket
 
+
+port_num = 12345
+
 # Function that receives a filename and then returns a list of lines in that file.
 def fread(filename):
 	rfile = open(filename, 'r')
@@ -58,7 +61,7 @@ def dict_process(items):
 			else:
 				action.append(item.strip())
 		
-		if item.count('\t') == 2:
+		if item.count('\t') == 2 and len(item.strip()) > 0:
 			# req_files = item.split('requires ',1)[1].split(' ')
 			# action.append(req_files)
 			action.append(item.strip())
@@ -139,36 +142,6 @@ def file_path(filename):
 
 
 def main():
-	server_addr = ('localhost', 12345)
-	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-	try:
-		s.connect(server_addr)
-		print("Connected to {:s}".format(repr(server_addr)))
-
-		# for i in range(5):
-		# 	print("")
-		# 	# payload_out = Payload(1, i, random.uniform(-10, 30))
-		# 	print("Sending id={:d}, counter={:d}, temp={:f}".format(payload_out.id,
-		# 														payload_out.counter,
-		# 														payload_out.temp))
-		# 	# nsent = s.send(payload_out)
-		# 	# Alternative: s.sendall(...): coontinues to send data until either
-		# 	# all data has been sent or an error occurs. No return value.
-		# 	print("Sent {:d} bytes".format(nsent))
-
-		# 	# buff = s.recv(sizeof(Payload))
-		# 	# payload_in = Payload.from_buffer_copy(buff)
-		# 	print("Received id={:d}, counter={:d}, temp={:f}".format(payload_in.id,
-		# 														payload_in.counter,
-		# 														payload_in.temp))
-	except AttributeError as ae:
-		print("Error creating the socket: {}".format(ae))
-	except socket.error as se:
-		print("Exception on socket: {}".format(se))
-	finally:
-		print("Closing socket")
-		s.close()
 
 	directory = os.getcwd()	# The working directory.
 	rakefile  = 'Rakefile'	# Will be used to store rakefile.
@@ -176,15 +149,34 @@ def main():
 	if len(sys.argv) == 2:
 		rakefile = sys.argv[1]
 	
-	print('\n', 'Looking at this file: ', rakefile)
+	# print('\n', 'Looking at this file: ', rakefile)
 		
 	string_list = fread(rakefile)
-	print('\n', 'This is what was in the file\n', string_list)
-			
+	# print('\n', 'This is what was in the file\n', string_list)
+
 	rake_dict = dict_process(string_list)
-	print('\n', 'This is a dictionary of the port, hosts and action sets\n',rake_dict)
+
+	actionsets = []	# List holding all the action sets.
+	
+	for key in rake_dict:
+		if key.find('Action Set ') >= 0:
+			actionsets.append(key)
 			
-	a_sets = execute_action_sets(rake_dict)
+
+	server_addr = ('localhost', port_num)
+	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock_desc:
+		sock_desc.connect(server_addr)
+		for actionset in actionsets:
+			for action in rake_dict[actionset]:
+				# sock_desc.send(bytes("Hello, world", "utf-8"))
+				sock_desc.send(bytes(action[0], "utf-8"))
+				data = sock_desc.recv(2048)
+				if data:
+					print(data.decode("utf-8"))
+			
+	# print('\n', 'This is a dictionary of the port, hosts and action sets\n', rake_dict)
+			
+	# a_sets = execute_action_sets(rake_dict)
 			
 main()
 
