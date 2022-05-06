@@ -227,7 +227,7 @@ void debug_rackfile()
         printf("%s:\n", rackfile.actionSets[i].actionSetName);
         for (int a=0 ; a<rackfile.actionSets[i].nActions ; a++)
         {
-            printf(" - %s", rackfile.actionSets[i].actions[a].action);
+            printf(" - (%s) %s ", rackfile.actionSets[i].actions[a].isLocal ? "true" : "false", rackfile.actionSets[i].actions[a].action);
             if (rackfile.actionSets[i].actions[a].nRequiredFiles > 0)
             {
                 printf("  required files:\n");
@@ -320,9 +320,16 @@ void parse_file(char *filename)
 
                             trim_leading(line);
                             
-                            if (starts_with(line, "remote"))
+                            if (starts_with(line, "remote-"))
+                            {
                                 rackfile.actionSets[ action_set_ind ].actions[action_ind].isLocal = true;
-                            strcpy(rackfile.actionSets[ action_set_ind ].actions[action_ind++].action, line);
+                                int len = strlen("remote-");
+                                char *substring = line;
+                                substring += len;
+                                strcpy(rackfile.actionSets[ action_set_ind ].actions[action_ind++].action, substring);
+                            }
+                            else
+                                strcpy(rackfile.actionSets[ action_set_ind ].actions[action_ind++].action, line);
 
                             break;
 
