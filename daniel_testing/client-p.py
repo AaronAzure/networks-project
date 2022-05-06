@@ -114,6 +114,9 @@ def execute_action_sets(rdictionary):
 							arguments[count] = path
 						
 						count += 1
+						
+				else: # Remote compiling
+					print('dab')	# Re
 				output = subprocess.run(arguments, capture_output = True)
 				print(output)
 				print('\n')
