@@ -20,7 +20,9 @@ def main():
     echo_socket.bind(('localhost', port_num))
 
     socket_num = 0
-    print(MAG + "listening on port=" + str(port_num) + ", sd=" + str(socket_num) + RST)
+    local_ip = socket.gethostbyname("localhost")
+    print("IP address = " + str(local_ip))
+    print(MAG + "listening on port " + str(port_num) + ", sd " + str(socket_num) + RST)
     print("---------------------------------------------")
 
     # Listen for incoming connections
@@ -36,8 +38,9 @@ def main():
             # RECEIVED DATA FROM A CLIENT
             if data: 
                 print(" <-- " + data.decode("utf-8"))
+                client.send(bytes(" <-- Received {" + data.decode("utf-8") + "}", "utf-8"))
                 os.system(data.decode("utf-8"))
-                client.send(bytes(" --> Received " + data.decode("utf-8"),"utf-8"))
+                data = None
             # FINISHED RECEIVING DATA FROM CLIENT
             else:
                 break

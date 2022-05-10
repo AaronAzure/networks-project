@@ -8,6 +8,7 @@
 #include <dirent.h>
 #include <stdbool.h>
 #include <sys/socket.h>
+#include <netdb.h>
 #include <arpa/inet.h>	//inet_addr
 
 #define     MAX_FILES_IN_DIRECTORY      128
@@ -16,7 +17,7 @@
 #define     MAX_ACTIONS                 32
 #define     MAX_ACTIONSETS              32
 #define     MAX_REQUIREMENTS            32
-#define     BUFFER_SIZE                 512
+#define     BUFFER_SIZE                 1024
 #define     MAX_FILE_NAME               64
 #define     MAX_LINE_LENGTH             1024
 
@@ -181,15 +182,8 @@ void execute_all()
         for (int a=0 ; a<rackfile.actionSets[i].nActions && !error_in_actionset ; a++)
         {
             int return_code = system(rackfile.actionSets[i].actions[a].action);
-            // printf("  -> %i\n", return_code);
-
-                // int errnum;
-                // errnum = errno;
-                // fprintf(stderr, "Value of errno: %d\n", errno);
-                // perror("Error printed by perror");
-                // fprintf(stderr, "Error opening file: %s\n", strerror( errnum ));
             
-            // // IF THERE IS AN ERROR IN RUNNING ACTION, STOP FOLLOWING ACTIONS
+            // IF THERE IS AN ERROR IN RUNNING ACTION, STOP FOLLOWING ACTIONS
             if (return_code != 0)
             {
                 printf(RED);
@@ -229,7 +223,7 @@ void debug_rackfile()
         printf("%s:\n", rackfile.actionSets[i].actionSetName);
         for (int a=0 ; a<rackfile.actionSets[i].nActions ; a++)
         {
-            printf(" - (%s) %s ", rackfile.actionSets[i].actions[a].isLocal ? "true" : "false", rackfile.actionSets[i].actions[a].action);
+            printf(" - (%s)\t%s\n", rackfile.actionSets[i].actions[a].isLocal ? "true" : "false", rackfile.actionSets[i].actions[a].action);
             if (rackfile.actionSets[i].actions[a].nRequiredFiles > 0)
             {
                 printf("  required files:\n");
@@ -266,7 +260,6 @@ void parse_file(char *filename)
         while (fgets(line, sizeof(line), fp) != NULL) 
         {
             // STORE NON-EMPTY LINES
-            // if (strncmp("\n", line, strlen("\n")) != 0) // starting with a new line char
             if (!starts_with(line, "\n")) // is a newline character
             {
                 // TRIM UNTIL COMMENT SYMBOL
@@ -321,7 +314,9 @@ void parse_file(char *filename)
                         case 1: // ACTION LINE
 
                             trim_leading(line);
-                            
+                            if (line[strlen(line) - 1] == '\n')
+                                line[strlen(line) - 1] = '\0';
+
                             if (starts_with(line, "remote-"))
                             {
                                 rackfile.actionSets[ action_set_ind ].actions[action_ind].isLocal = true;
@@ -337,8 +332,14 @@ void parse_file(char *filename)
 
                         case 2: // REQUIREMENT LINE
 
+                            // INVALID - NO PREVIOUS ACTION FOR REQUIREMENTS
+                            if (action_ind == 0)
+                                continue;
+                            
                             action_ind--;
                             trim_leading(line);
+                            if (line[strlen(line) - 1] == '\n')
+                                line[strlen(line) - 1] = '\0';
                             int len = strlen("requires");
                             char *substring = line;
                             substring += len;
@@ -372,6 +373,24 @@ void parse_file(char *filename)
 }
 
 
+int write_file_to_server(int sd, char message[])
+{
+    printf(GRN);
+    printf(" --> %s\n", message);
+    printf(RESET);
+
+    if (write(sd, message, strlen(message)) < 0) 
+        return EXIT_FAILURE;
+        
+    char server_reply[1024];
+    read(sd, server_reply , 1024);
+    printf("%s\n", server_reply);
+    return EXIT_SUCCESS;
+}
+
+
+
+
 int main(int argc, char *argv[])
 {
     printf("\n");
@@ -385,7 +404,6 @@ int main(int argc, char *argv[])
         parse_file("Rakefile");
         strcpy(file_path, "");
     }
-
     // EXTRACT INFO FROM SPECIFIED FILE ( FROM COMMAND LINE ARGS )
     else if (argc > 1)
     {
@@ -404,34 +422,57 @@ int main(int argc, char *argv[])
     printf(RESET);
 
     // EXECUTING
-    int sockfd = socket(PF_INET, SOCK_STREAM, 0);
-    struct sockaddr_in serv_addr;
 
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(12345);
-
-    if (connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) 
+	//  LOCATE INFORMATION ABOUT THE REQUIRED HOST (ITS IP ADDRESS)
+	
+	// CREATE SOCKET
+    //  ASK OUR OS KERNEL TO ALLOCATE RESOURCES FOR A SOCKET
+    int sd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sd < 0) 
     {
-        printf("\nConnection Failed \n");
-        return EXIT_FAILURE;
+        perror("rlogin: socket");
+        exit(3);
     }
 
+//  INITIALIZE FILEDS OF A STRUCTURE USED TO CONTACT SERVER
     struct sockaddr_in server;
-    server.sin_addr.s_addr = inet_addr("localhost");
-	server.sin_family = AF_INET;
-	server.sin_port = htons( 80 );
 
-	//Connect to remote server
-	if (connect(sockfd , (struct sockaddr *)&server , sizeof(server)) < 0)
-	{
-		puts("connect error");
-		return 1;
-	}
-	
-	// puts("Connected");
-    char *message = "GET / HTTP/1.1\r\n\r\n";
-	if( send(sockfd , message , strlen(message) , 0) < 0)
-        return EXIT_FAILURE;
+    // memset(&server, 0, sizeof(server));
+    // memcpy(&server.sin_addr, hp->h_addr, hp->h_length);
+    // server.sin_family  = hp->h_addrtype;
+    // server.sin_port    = sp->s_port;
+    server.sin_addr.s_addr = inet_addr("127.0.0.1");
+	server.sin_family = AF_INET;
+	server.sin_port = htons( 12345 );
+
+    //  CONNECT TO SERVER
+    // //  FIND AND CONNECT TO THE SERVICE ADVERTISED WITH "THREEDsocket"
+    if (connect(sd, (struct sockaddr *)&server, sizeof(server)) < 0) 
+    {
+        perror("rlogin: connect");
+        exit(4);
+    }
+
+    bool error_in_actionset = false;
+    for (int i=0 ; i<rackfile.nActionSets && !error_in_actionset; i++)
+    {
+        for (int j=0 ; j<rackfile.actionSets[i].nActions && !error_in_actionset; j++)
+        {
+            // EXECUTE ACTION ON SERVER
+            if (rackfile.actionSets[i].actions[j].isLocal)
+            {
+                if (write_file_to_server(sd, rackfile.actionSets[i].actions[j].action) != 0)
+                    error_in_actionset = true;
+            }
+            // EXECUTE ACTION ON LOCAL MACHINE
+            else
+            {
+                system(rackfile.actionSets[i].actions[j].action);
+            }
+        }
+    }
+    shutdown(sd, SHUT_RDWR);
+    close(sd);
 	    
     // printf(GRN);
     // execute_all();
