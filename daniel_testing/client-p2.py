@@ -1,6 +1,6 @@
 # CITS3003 2022 Project, written by:
-# Aaron Wee		(22702446)
-# Daniel Ling		(22896002)
+# Aaron Wee				(22702446)
+# Daniel Ling			(22896002)
 # Muhammad Maaz Ahmed	(22436686)
 
 import os
@@ -8,65 +8,80 @@ import subprocess
 import sys
 import socket
 
+BOLD = "\033[1;30m"
+RED = "\033[1;31m"
+GRN = "\033[1;32m"
+YEL = "\033[1;33m"
+MAG = "\033[1;35m"
+CYN = "\033[1;36m"
+RST = "\033[0m"
+
 
 port_num = 12345
 
-# Function that receives a filename and then returns a list of lines in that file.
+# Function that receives a filename, 
+# and then returns a list of lines of useful information from the specified file
 def fread(filename):
 	rfile = open(filename, 'r')
 	lines = rfile.readlines()
 	rfile.close()
 	
 	count = 0
+	result = []
+	
 	for line in lines:
-		
+
+		# skip empty lines
+		if line == '\n':
+			continue
+
 		# strip '#' and all characters after it from that line
-		if line.find('#') >= 0:	
-			split_string = line.split('#', 1)
-			lines[count] = split_string[0]
+		if line.find('#') == 0:
+			continue
+		elif line.find('#') > 0:
+			result.append(line.split('#', 1)[0])
+		else:
+			result.append(line)
 		
-		lines[count] = lines[count].rstrip('\n')	# strip newline
+		result[count] = result[count].rstrip('\n')	# strip newline
+		result[count] = result[count].rstrip()		# strip trailing whitespaces
 		count += 1
-	return lines
+	return result
 
 
 # Function that converts all items in a list to a dictionary, which is then returned.	
-def dict_process(items):
-	
+def parse_file(items):
+	print(items)
 	# Dictionary holding the port number, a 1D array of hosts and a 2D arrays of action sets.
-	item_dictionary = {'Port': '', 'Hosts': []}
+	item_dictionary = {'Port': 0, 'Hosts': []}
 	
 	# variables for the action set
-	count = 1
+	count = 0
 	action = []
+	current_actionset_name = ""
 	
 	for item in items:
-		if item.find('PORT') >= 0:
-			item_dictionary['Port'] = int(item.split('= ', 1)[1])
-		
-		if item.find('HOST') >= 0:
+		# IF LINE STARTS WITH PORT, GET AND STORE DEFAULT PORT NUMBER
+		if item.find('PORT') == 0:
+			item_dictionary['Port'] = int(item.split()[-1])
+
+		# IF LINE STARTS WITH HOSTS, GET AND STORE HOST(S)
+		elif item.find('HOST') == 0:
 			item = item.replace('HOSTS = ', '')
 			item_dictionary['Hosts'] = item.split(' ', item.count(' '))
-			
-		if+ item.find('actionset' + str(count) + ':') >= 0:
-			item_dictionary['Action Set ' + str(count)] = []
+
+		# IF LINE STARTS WITH actionset, GET AND STORE Action	
+		elif item.find('actionset') == 0:
+			current_actionset_name = item.split(':')[0]
+			item_dictionary[ current_actionset_name ] = []
 			count += 1
 		
-		#Note to self: Do
-		if item.count('\t') == 1:
-			if len(action) == 1:
-				item_dictionary['Action Set ' + str(count - 1)].append(action)
-				action = []
-				action.append(item.strip())
-			else:
-				action.append(item.strip())
+		# Note to self: Do
+		elif item.count('\t') == 1:
+			item_dictionary[ current_actionset_name ].append( [item.strip()] )
 		
-		if item.count('\t') == 2 and len(item.strip()) > 0:
-			# req_files = item.split('requires ',1)[1].split(' ')
-			# action.append(req_files)
-			action.append(item.strip())
-			item_dictionary['Action Set ' + str(count - 1)].append(action)
-			action = []
+		elif item.count('\t') == 2 and len(item_dictionary[ current_actionset_name ]) > 0:
+			item_dictionary[ current_actionset_name ][-1].append(item.strip())
 		
 		
 	# All hosts with no specified port number get assigned the default port number.
@@ -86,7 +101,7 @@ def execute_action_sets(rdictionary):
 	actionsets = []	# List holding all the action sets.
 	
 	for key in rdictionary:
-		if key.find('Action Set ') >= 0:
+		if key.find('actionset') == 0:
 			actionsets.append(key)
 	
 	for actionset in actionsets:
@@ -96,14 +111,14 @@ def execute_action_sets(rdictionary):
 			if len(action) == 1:
 				arguments = action[0].split()
 				
-				if arguments[0].find('remote') < 0: # Non-remote compiling.
+				if arguments[0].find('remote-') < 0: # Non-remote compiling.
 					print("Looking at", arguments)
 					if subprocess.run(arguments) == 0:
 						return
 					else:
 						print(subprocess.run(arguments, capture_output = True), '\n')
 						
-				if arguments[0].find('remote') >= 0: # Remote compiling.
+				if arguments[0].find('remote-') >= 0: # Remote compiling.
 					print(remote_function(arguments))
 				
 			
@@ -149,8 +164,33 @@ def file_path(filename):
 
 # Function that performes actions that require the server. 
 # Receives the action and a list of the necessary files.
-def remote_function(argument):
-	return("Remote doesn't actually do anything yet.")
+def write_file_to_server(sd, message):
+    # print(f"{GRN} --> {message} {RST}"))
+	message = message.split("remote-")[1]
+	sd.send(bytes(message, "utf-8"))
+	# sd.send(bytes(message, "utf-8"))
+    # if write(sd, message, strlen(message)) < 0:
+    #     return -1
+        
+    # SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
+	reply = sd.recv(2048)
+	if reply:
+		reply = reply.decode("utf-8")
+		print(CYN) 
+		print(f"{CYN} <-- {reply} {RST}") 
+    
+    # SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
+	status = sd.recv(2048)
+	if status:
+		status = status.decode("utf-8")
+		print(CYN) 
+		print(f"{CYN} <-- {status} {RST}") 
+
+    # return status
+
+
+
+
 ####################################################################################################
 
 
@@ -167,29 +207,48 @@ def main():
 	string_list = fread(rakefile)
 	# print('\n', 'This is what was in the file\n', string_list)
 
-	rake_dict = dict_process(string_list)
+	action_table = parse_file(string_list)
+	print(action_table)
 
-	actionsets = []	# List holding all the action sets.
+	actionsets_keys = []	# List holding all the action sets.
 	
-	for key in rake_dict:
-		if key.find('Action Set ') >= 0:
-			actionsets.append(key)
+	for key in action_table:
+		if key.find('actionset') == 0:
+			actionsets_keys.append(key)
 			
 
-	#server_addr = ('localhost', port_num)
-	#ith socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock_desc:
-	#	sock_desc.connect(server_addr)
-	#	for actionset in actionsets:
-	#		for action in rake_dict[actionset]:
-	#			# sock_desc.send(bytes("Hello, world", "utf-8"))
-	#			sock_desc.send(bytes(action[0], "utf-8"))
-	#			data = sock_desc.recv(2048)
-	#			if data:
-	#				print(data.decode("utf-8"))
+	# hostname = socket.gethostname()
+	# print(hostname)
+
+	# sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	sd.connect(('10.10.255.255', 12345))
+	# sd.connect(('ASUS', 12345))
+
+	for actionsets_key in actionsets_keys:
+		for action in action_table[ actionsets_key ]:
+            # EXECUTE ACTION ON SERVER
+			if action[0].find('remote-') == 0:
+				write_file_to_server(sd, action[0])
+            # EXECUTE ACTION ON LOCAL MACHINE
+			else:
+				os.system(action[0])
+
+	
+	# server_addr = ('localhost', port_num)
+	# with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock_desc:
+	# 	sock_desc.connect(server_addr)
+	# 	for actionset in actionsets:
+	# 		for action in action_table[actionset]:
+	# 			# sock_desc.send(bytes("Hello, world", "utf-8"))
+	# 			sock_desc.send(bytes(action[0], "utf-8"))
+	# 			data = sock_desc.recv(2048)
+	# 			if data:
+	# 				print(data.decode("utf-8"))
 			
-	# print('\n', 'This is a dictionary of the port, hosts and action sets\n', rake_dict)
+	# print('\n', 'This is a dictionary of the port, hosts and action sets\n', action_table)
 			
-	a_sets = execute_action_sets(rake_dict)
+	# a_sets = execute_action_sets(action_table)
 			
 main()
 

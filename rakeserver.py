@@ -32,11 +32,13 @@ def main():
 
 
     # A TCP based echo server
-    echo_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
  
     # Bind the IP address and the port number
     host = socket.gethostbyname("localhost")
-    echo_socket.bind((host, port_num))
+    sd.bind((host, port_num))
+    
+    print(f"hostname = '{socket.gethostname()}'")
 
     socket_num = 0
     # local_ip = socket.gethostbyname("localhost")
@@ -45,11 +47,11 @@ def main():
     print("---------------------------------------------")
 
     # Listen for incoming connections
-    echo_socket.listen()
+    sd.listen()
 
     # Start accepting client connections
     while True:
-        client, addr = echo_socket.accept() #! BLOCKING
+        client, addr = sd.accept() #! BLOCKING
         socket_num += 1
         print(BOLD + " Accepted new client on sd=" + str(socket_num) + RST)
         while True:
