@@ -148,7 +148,7 @@ def main():
 				sys.exit()
 			# IP ADDRESS
 			elif opt == '-i':
-				HOST = int(arg)
+				HOST = arg
 			# RAKEFILE TO ANAYLSE
 			elif opt == '-r':
 				rakefile = arg

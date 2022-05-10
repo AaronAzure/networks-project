@@ -34,7 +34,7 @@ def main():
                 sys.exit()
             # IP ADDRESS
             elif opt == '-i':
-                HOST = int(arg)
+                HOST = arg
             # PORT NUMBER
             elif opt == "-p":
                 PORT_NUM = int(arg)
