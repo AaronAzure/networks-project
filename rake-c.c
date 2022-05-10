@@ -74,9 +74,14 @@ typedef struct Rackfile
 } Rackfile;
 
 
-extern int errno ;
+extern int errno;
 
 char file_path[MAX_FILE_NAME];
+
+char    rackfile_name[MAX_FILE_NAME];
+char    host[16];
+int     port_num = 12345;
+int     verbose = false;
 
 Rackfile rackfile;
 
@@ -250,7 +255,9 @@ void debug_rackfile()
  */
 void parse_file(char *filename)
 {
-    printf("-- parsing %s\n", filename);
+    if (verbose)
+        printf("-- parsing %s\n\n", filename);
+
     FILE  *fp = fopen(filename, "r");
     char  line[BUFFER_SIZE];
 
@@ -418,37 +425,53 @@ int write_file_to_server(int sd, char message[])
 
 int main(int argc, char *argv[])
 {
-    printf("\n"); printf(CYN);
+    int opt;
+    strcpy(host, "localhost");
+    while ((opt = getopt(argc, argv, "vhi:p:r:")) != -1) 
+    {
+        switch (opt) 
+        {
+            // HELP ( HOW TO USE )
+            case 'h':
+                printf("usage: ./rake-c -i <ip address> -p <port number> -r <rakefile>'\n");
+                break;
+            // RAKEFILE TO ANAYLSE
+            case 'r':
+                strcpy(rackfile_name, optarg);
+                break;
+            // IP ADDRESS
+            case 'i':
+                strcpy(host, optarg);
+                break;
+            // PORT NUMBER
+            case 'p':
+                port_num = atoi(optarg);
+                break;
+            // VERBOSE - DEBUGGING
+            case 'v':
+                verbose = true;
+                break;
+        }
+    }
+
+    printf("\n"); 
 
     // EXTRACT INFO FROM "Rakefile" IN CURRENT DIRECTORY
-    if (argc == 1)
-    {
-        printf("Found files at current directory:\n");
-        parse_file("Rakefile");
-        strcpy(file_path, "");
-    }
-    // EXTRACT INFO FROM SPECIFIED FILE ( FROM COMMAND LINE ARGS )
-    else if (argc > 1)
-    {
-        printf("Found files at %s:\n", argv[1]);
-        parse_file(argv[1]);
-        strcpy(file_path, argv[1]);
-        strcat(file_path, "/");
-    }
-
-    printf(RESET); printf("\n");
-
+    parse_file(rackfile_name);
 
     // DEBUGGING
-    printf(YEL);
-    debug_rackfile();
-    printf(RESET);
+    if (verbose)
+    {
+        printf(YEL);
+        debug_rackfile();
+        printf(RESET);
+    }
 
     // EXECUTING
 
 	//  LOCATE INFORMATION ABOUT THE REQUIRED HOST (ITS IP ADDRESS)
 	// struct hostent     *hp = gethostbyname("10.20.162.197");
-	struct hostent     *hp = gethostbyname("127.0.1.1");
+	struct hostent     *hp = gethostbyname(host);
 	// struct hostent     *hp = gethostbyname("localhost");
     if (hp == NULL) 
     {
@@ -465,7 +488,7 @@ int main(int argc, char *argv[])
         exit(3);
     }
 
-//  INITIALIZE FILEDS OF A STRUCTURE USED TO CONTACT SERVER
+    //  INITIALIZE FILEDS OF A STRUCTURE USED TO CONTACT SERVER
     struct sockaddr_in server;
 
     // memset(&server, 0, sizeof(server));
@@ -474,8 +497,7 @@ int main(int argc, char *argv[])
     // server.sin_addr.s_addr = inet_addr("10.20.162.197");
 	// server.sin_family = AF_INET;
     server.sin_family  = hp->h_addrtype;
-    server.sin_addr.s_addr = INADDR_ANY;
-	server.sin_port = htons( 12345 );
+	server.sin_port = htons( port_num );
 
     //  CONNECT TO SERVER
     // //  FIND AND CONNECT TO THE SERVICE ADVERTISED WITH "THREEDsocket"
@@ -513,14 +535,10 @@ int main(int argc, char *argv[])
     }
     shutdown(sd, SHUT_RDWR);
     close(sd);
-	    
-    // printf(GRN);
-    // execute_all();
-    // printf(RESET);
-
 
     printf("\n");
     return EXIT_SUCCESS;
 }
 
 // cc -std=c99 -Wall -Werror -o client-c client-c.c && ./client-c
+// cc -std=c99 -Wall -Werror -o rake-c rake-c.c && ./rake-c

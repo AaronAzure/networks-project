@@ -3,7 +3,7 @@
 # Daniel Ling			(22896002)
 # Muhammad Maaz Ahmed	(22436686)
 
-import os
+import os, getopt
 import subprocess
 import sys
 import socket
@@ -17,7 +17,10 @@ CYN = "\033[1;36m"
 RST = "\033[0m"
 
 
-port_num = 12345
+HOST = 'localhost'
+PORT_NUM = 12345
+VERBOSE = False
+rakefile  = 'Rakefile'	# Will be used to store rakefile.
 
 # Function that receives a filename, 
 # and then returns a list of lines of useful information from the specified file
@@ -51,7 +54,7 @@ def fread(filename):
 
 # Function that converts all items in a list to a dictionary, which is then returned.	
 def parse_file(items):
-	print(items)
+	# print(items)
 	# Dictionary holding the port number, a 1D array of hosts and a 2D arrays of action sets.
 	item_dictionary = {'Port': 0, 'Hosts': []}
 	
@@ -129,12 +132,36 @@ def write_file_to_server(sd, message):
 
 
 def main():
+	global HOST
+	global PORT_NUM
+	global VERBOSE
+	global rakefile
 
-	directory = os.getcwd()	# The working directory.
-	rakefile  = 'Rakefile'	# Will be used to store rakefile.
-	
-	if len(sys.argv) == 2:
-		rakefile = sys.argv[1]
+	# OPTION FLAGS
+	try:
+		opts, args = getopt.getopt(sys.argv[1:], "vhi:p:r:")
+		
+		for opt, arg in opts:
+			# HELP ( HOW TO USE )
+			if opt == '-h':
+				print('usage: rake-p.py -i <ip address> -p <port number> -r <rakefile>')
+				sys.exit()
+			# IP ADDRESS
+			elif opt == '-i':
+				HOST = int(arg)
+			# RAKEFILE TO ANAYLSE
+			elif opt == '-r':
+				rakefile = arg
+			# PORT NUMBER
+			elif opt == "-p":
+				PORT_NUM = int(arg)
+			# VERBOSE - DEBUGGING
+			elif opt == "-v":
+				VERBOSE = True
+	except getopt.GetoptError:
+		print('usage: rakeserver.py -i <ip address> -p <port number> -r <rakefile>')
+		sys.exit(2)
+
 	
 	# print('\n', 'Looking at this file: ', rakefile)
 		
@@ -142,7 +169,7 @@ def main():
 	# print('\n', 'This is what was in the file\n', string_list)
 
 	action_table = parse_file(string_list)
-	print(action_table)
+	# print(action_table)
 
 	actionsets_keys = []	# List holding all the action sets.
 	
@@ -151,12 +178,8 @@ def main():
 			actionsets_keys.append(key)
 			
 
-	# hostname = socket.gethostname()
-	# print(hostname)
-
-	# sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	sd.connect(('localhost', 12345))
+	sd.connect((HOST, PORT_NUM))
 
 	for actionsets_key in actionsets_keys:
 		for action in action_table[ actionsets_key ]:
@@ -167,8 +190,8 @@ def main():
 			else:
 				os.system(action[0])
 			
-	# print('\n', 'This is a dictionary of the port, hosts and action sets\n', action_table)
 			
+
 if __name__ == "__main__":
     main()
 

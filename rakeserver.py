@@ -3,8 +3,10 @@ import sys, getopt
 import os
 
 # port number
-port_num = 12345
-socket_num = 0
+HOST = 'localhost'
+PORT_NUM = 12345
+SOCKET_NUM = 0
+VERBOSE = False
 
 BOLD = "\033[1;30m"
 RED = "\033[1;31m"
@@ -15,19 +17,32 @@ CYN = "\033[1;36m"
 RST = "\033[0m"
 
 
+
 def main():
-    global port_num
+    global HOST
+    global VERBOSE
+    global PORT_NUM
+    global SOCKET_NUM
+
     try:
-        opts, args = getopt.getopt(sys.argv[1:],"hp:")
+        opts, args = getopt.getopt(sys.argv[1:], "vhi:p:")
         
         for opt, arg in opts:
+            # HELP ( HOW TO USE )
             if opt == '-h':
                 print('usage: rakeserver.py -p <port number>')
                 sys.exit()
+            # IP ADDRESS
+            elif opt == '-i':
+                HOST = int(arg)
+            # PORT NUMBER
             elif opt == "-p":
-                port_num = int(arg)
+                PORT_NUM = int(arg)
+            # VERBOSE - DEBUGGING
+            elif opt == "-v":
+                VERBOSE = True
     except getopt.GetoptError:
-        print('usage: rakeserver.py -p <port number>')
+        print('usage: rakeserver.py -i <ip address> -p <port number>')
         sys.exit(2)
 
 
@@ -35,15 +50,13 @@ def main():
     sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
  
     # Bind the IP address and the port number
-    host = socket.gethostbyname("localhost")
-    sd.bind((host, port_num))
+    sd.bind((HOST, PORT_NUM))
     
-    print(f"hostname = '{socket.gethostname()}'")
-
-    socket_num = 0
+    SOCKET_NUM = 0
     # local_ip = socket.gethostbyname("localhost")
-    print("IP address = " + host)
-    print(MAG + "listening on port=" + str(port_num) + ", sd=" + str(socket_num) + RST)
+    if VERBOSE:
+        print("IP address = " + HOST)
+    print(MAG + "listening on port=" + str(PORT_NUM) + ", sd=" + str(SOCKET_NUM) + RST)
     print("---------------------------------------------")
 
     # Listen for incoming connections
@@ -52,8 +65,8 @@ def main():
     # Start accepting client connections
     while True:
         client, addr = sd.accept() #! BLOCKING
-        socket_num += 1
-        print(BOLD + " Accepted new client on sd=" + str(socket_num) + RST)
+        SOCKET_NUM += 1
+        print(BOLD + " Accepted new client on sd=" + str(SOCKET_NUM) + RST)
         while True:
             data = client.recv(2048)     #! BLOCKING
             # RECEIVED DATA FROM A CLIENT
@@ -77,9 +90,9 @@ def main():
             else:
                 break
         client.close()
-        print(BOLD + ' Client disconnected from sd=' + str(socket_num) + '\n' + RST)
-        socket_num -= 1
-        print(MAG + "listening on port " + str(port_num) + ", sd " + str(socket_num) + RST)
+        print(BOLD + ' Client disconnected from sd=' + str(SOCKET_NUM) + '\n' + RST)
+        SOCKET_NUM -= 1
+        print(MAG + "listening on port " + str(PORT_NUM) + ", sd " + str(SOCKET_NUM) + RST)
         print("----------------------------------------")
 
     
