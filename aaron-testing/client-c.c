@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>	//inet_addr
+#include <getopt.h>
 
 #define     MAX_FILES_IN_DIRECTORY      128
 #define     MAX_FILES_TO_PROCESS        128
@@ -54,13 +55,19 @@ typedef struct ActionSet
 } ActionSet;
 
 
+typedef struct Host
+{
+    int     port;
+    char    host[MAX_FILE_NAME];
+} Host;
+
+
 typedef struct Rackfile
 {
-    int         port;
     char        filename[MAX_FILE_NAME];
 
     int         nHosts;
-    char        hosts[MAX_HOSTS][BUFFER_SIZE];
+    Host        hosts[MAX_HOSTS];
 
     int         nActionSets;
     ActionSet   actionSets[MAX_ACTIONSETS];    //! ERROR
@@ -208,14 +215,10 @@ void execute_all()
  */
 void debug_rackfile()
 {
-
-    // PORT NUMBER
-    printf("port num:\n - %i\n", rackfile.port);
-
-    // HOST(S)
+    // HOST(S) + PORT NUMBER ( host:port )
     printf("hosts:\n");
     for (int h=0 ; h<rackfile.nHosts ; h++)
-        printf(" - %s\n", rackfile.hosts[h]);
+        printf(" - %s:%i\n", rackfile.hosts[h].host, rackfile.hosts[h].port);
 
     // ACTIONSETS
     for (int i=0 ; i<rackfile.nActionSets ; i++)
@@ -257,6 +260,7 @@ void parse_file(char *filename)
         int action_set_ind = 0;
         int action_ind    = 0;
         int *n_action_set = &rackfile.nActionSets;
+        int default_port;
         while (fgets(line, sizeof(line), fp) != NULL) 
         {
             // STORE NON-EMPTY LINES
@@ -272,7 +276,7 @@ void parse_file(char *filename)
                 {
                     char *last_word = NULL;
                     last_word = get_last_word(line);
-                    rackfile.port = atoi(last_word);
+                    default_port = atoi(last_word);
                 }
                 // IF LINE STARTS WITH HOSTS, GET AND STORE HOST(S)
                 else if (starts_with(line, "HOSTS"))
@@ -284,11 +288,24 @@ void parse_file(char *filename)
                     const char *delimiter = " ";
                     char *token = strtok(substring, delimiter);
                     
-                    // loop through the string to extract all other tokens
+                    // LOOP THROUGH THE STRING TO EXTRACT ALL OTHER TOKENS
                     int *nHosts = &rackfile.nHosts;
                     while ( token != NULL ) 
                     {
-                        strcpy(rackfile.hosts[(*nHosts)++], token);
+                        // HAS A SPECIFIED PORT NUMBER
+                        char *separator = strchr(token, ':');
+                        if (separator != NULL) 
+                        {
+                            *separator = '\0';
+                            rackfile.hosts[*nHosts].port = atoi(separator + 1);
+                            strcpy(rackfile.hosts[(*nHosts)++].host, token);
+                        }
+                        // NO SPECIFIED PORT NUMBER, SET DEFAULT PORT
+                        else
+                        {
+                            rackfile.hosts[*nHosts].port = default_port;
+                            strcpy(rackfile.hosts[(*nHosts)++].host, token);
+                        }
                         token = strtok(NULL, delimiter);
                     }
 
@@ -401,9 +418,7 @@ int write_file_to_server(int sd, char message[])
 
 int main(int argc, char *argv[])
 {
-    printf("\n");
-
-    printf(CYN);
+    printf("\n"); printf(CYN);
 
     // EXTRACT INFO FROM "Rakefile" IN CURRENT DIRECTORY
     if (argc == 1)
@@ -459,7 +474,7 @@ int main(int argc, char *argv[])
     // server.sin_addr.s_addr = inet_addr(hp->h_addr);
     // server.sin_addr.s_addr = inet_addr("127.0.0.1");
 	server.sin_family = AF_INET;
-	server.sin_port = htons( rackfile.port );
+	server.sin_port = htons( 12345 );
 
     //  CONNECT TO SERVER
     // //  FIND AND CONNECT TO THE SERVICE ADVERTISED WITH "THREEDsocket"
