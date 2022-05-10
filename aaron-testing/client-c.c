@@ -382,10 +382,18 @@ int write_file_to_server(int sd, char message[])
     if (write(sd, message, strlen(message)) < 0) 
         return EXIT_FAILURE;
         
+    // SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
     char server_reply[1024];
     read(sd, server_reply , 1024);
-    printf("%s\n", server_reply);
-    return EXIT_SUCCESS;
+    printf(CYN); printf(" <-- %s\n", server_reply); printf(RESET);
+    
+    // SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
+    char action_status[1024];
+    read(sd, action_status , 1024);
+    printf(CYN); printf(" <-- %s\n", action_status); printf(RESET);
+
+    return atoi(action_status);
+    // return EXIT_SUCCESS;
 }
 
 
@@ -424,7 +432,14 @@ int main(int argc, char *argv[])
     // EXECUTING
 
 	//  LOCATE INFORMATION ABOUT THE REQUIRED HOST (ITS IP ADDRESS)
-	
+	// struct hostent     *hp = gethostbyname("127.0.0.1");
+	struct hostent     *hp = gethostbyname("localhost");
+    if (hp == NULL) 
+    {
+        fprintf(stderr,"rlogin: unknown host\n");
+        exit(2);
+    }
+
 	// CREATE SOCKET
     //  ASK OUR OS KERNEL TO ALLOCATE RESOURCES FOR A SOCKET
     int sd = socket(AF_INET, SOCK_STREAM, 0);
@@ -438,12 +453,13 @@ int main(int argc, char *argv[])
     struct sockaddr_in server;
 
     // memset(&server, 0, sizeof(server));
-    // memcpy(&server.sin_addr, hp->h_addr, hp->h_length);
+    memcpy(&server.sin_addr, hp->h_addr, hp->h_length);
     // server.sin_family  = hp->h_addrtype;
     // server.sin_port    = sp->s_port;
-    server.sin_addr.s_addr = inet_addr("127.0.0.1");
+    // server.sin_addr.s_addr = inet_addr(hp->h_addr);
+    // server.sin_addr.s_addr = inet_addr("127.0.0.1");
 	server.sin_family = AF_INET;
-	server.sin_port = htons( 12345 );
+	server.sin_port = htons( rackfile.port );
 
     //  CONNECT TO SERVER
     // //  FIND AND CONNECT TO THE SERVICE ADVERTISED WITH "THREEDsocket"
@@ -462,11 +478,15 @@ int main(int argc, char *argv[])
             if (rackfile.actionSets[i].actions[j].isLocal)
             {
                 if (write_file_to_server(sd, rackfile.actionSets[i].actions[j].action) != 0)
+                {
                     error_in_actionset = true;
+                    printf("  ERROR IN SERVER: STOP EXECUTING REMAINING ACTION(S)\n");
+                }
             }
             // EXECUTE ACTION ON LOCAL MACHINE
             else
             {
+                printf(RESET);
                 system(rackfile.actionSets[i].actions[j].action);
             }
         }
