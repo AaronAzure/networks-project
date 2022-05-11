@@ -39,7 +39,6 @@ def fread(filename):
 		
 		# strip '#' and all characters after it from that line
 		if line.count('#') > 0:	
-			print('Processing:', line)
 			lines[count] = line.split('#', 1)[0]
 		
 		lines[count] = lines[count].rstrip('\n')	# strip newline
@@ -158,7 +157,10 @@ def execute_action_sets(rdictionary):
 							 
 				# Remote action.	
 				else:
-					print(remote_function(arguments))	
+					remote_argument = ' '.join(arguments)
+					remote_argument = remote_argument.split('-')[1]
+					
+					remote_function(remote_argument, required)	
 		
 		if action_failure:	# An action(s) failed. Stop executing actionsets.
 			print('Action failure notification', '\n')
@@ -194,11 +196,19 @@ def external_program_results(arguments, execution_failure):
 	
 # Function that performes actions that require the server. 
 # Receives the action and a list of the necessary files.
-def remote_function(argument):
-	print('Sending to server this:', argument)
+def remote_function(argument, requirements = None):
+
+	# If there are file requirements, add them as a string to arguments, seperated by ' Requirements: '.
+	if not requirements == None:
+		argument += ' Requirements: '
+		for requirement in requirements:
+			argument += requirement
+			argument += ' '
+	
+	print("Going to send this to server:", argument)
+	
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	sd.connect(SERVER_ADDR)
-	
 	sd.send(bytes(argument, "utf-8"))
 		
 	# SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED

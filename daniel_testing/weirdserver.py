@@ -16,7 +16,13 @@ MAG = "\033[1;35m"
 CYN = "\033[1;36m"
 RST = "\033[0m"
 
-
+# Function to find a file path in the working directory.
+def find_file(filename):
+	for r, d, f in os.walk(os.getcwd()):
+		if filename in f:
+			print(os.path.join(r, filename))
+			return os.path.join(r, filename)
+	return filename
 
 def main():
     global HOST
@@ -73,14 +79,41 @@ def main():
             if data: 
                 # DECODE RECEIVED DATA
                 data = data.decode("utf-8")
-                print(f"{CYN} <-- {data}{RST}")
+                
+                data = data.split(' Requirements:')
+                arguments = data[0].split()
+                requirements = []
+                
+                if len(data) == 2:
+                	requirements = data[1].split()
+
+                print('arguments:', arguments, '\nrequirements:', requirements)
                 # print(CYN + " <-- " + data + RST)
                 
+                # Find the file in the server's working directory.
+                count = 0
+                for argument in arguments:
+                	if argument in requirements:
+                		print('trying to find path of ', argument)
+                		arguments[count] = find_file(argument)
+                	count += 1
+                		
                 # INFORM CLIENT THAT IT HAS RECEIVED THE DATA
-                client.send(bytes("Received {" + data + "}", "utf-8"))
+                client.send(bytes("Server received { + data + }", "utf-8"))
                 
                 # EXECUTES COMMAND
-                return_code = subprocess.run(data.split(), capture_output = True)
+                execution = subprocess.run(arguments, capture_output = True)
+                return_code = 'Received from the server the following:\n'
+                return_code += '\tArguments: ' + ' '.join(execution.args) 
+                return_code += '\n\tRequirements: ' + ' '.join(requirements)
+                return_code += '\n\tExit status: ' + str(execution.returncode)
+                
+                if not execution.stdout.decode() == '':
+                	return_code += '\n\tOutput: ' + execution.stdout.decode()
+                	
+                if not execution.stderr.decode() == '':
+                	return_code += '\n\tError: ' + execution.stderr.decode()
+                	
                 print("return value = " + str(return_code))
                 
                 # INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND

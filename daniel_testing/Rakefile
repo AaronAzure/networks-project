@@ -8,3 +8,6 @@ actionset1: #potato
 	cal
 		requires client-c.c potato.c
 	remote-cal
+		requires client-c.c potato.c
+	remote-cc program.c # potato
+		requires program.c program.h allfunctions.h # potato
