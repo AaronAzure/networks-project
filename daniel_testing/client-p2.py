@@ -1,9 +1,9 @@
 # CITS3003 2022 Project, written by:
-# Aaron Wee				(22702446)
-# Daniel Ling			(22896002)
+# Aaron Wee		(22702446)
+# Daniel Ling		(22896002)
 # Muhammad Maaz Ahmed	(22436686)
 
-import os
+import os, getopt
 import subprocess
 import sys
 import socket
@@ -16,72 +16,68 @@ MAG = "\033[1;35m"
 CYN = "\033[1;36m"
 RST = "\033[0m"
 
-
+############HARDCODE, GET RID OF THIS LATER##################################
+addr = '127.0.0.1'	#'192.168.43.147'	# Server address.
 port_num = 12345
+server_addr = (addr, port_num)
 
-# Function that receives a filename, 
-# and then returns a list of lines of useful information from the specified file
+HOST = 'localhost'
+PORT_NUM = 12345
+VERBOSE = False
+rakefile  = 'Rakefile'	# Will be used to store rakefile.
+#################################################################################
+
+# Function that receives a filename and then returns a list of lines in that file.
 def fread(filename):
 	rfile = open(filename, 'r')
 	lines = rfile.readlines()
 	rfile.close()
 	
 	count = 0
-	result = []
-	
 	for line in lines:
-
-		# skip empty lines
-		if line == '\n':
-			continue
-
-		# strip '#' and all characters after it from that line
-		if line.find('#') == 0:
-			continue
-		elif line.find('#') > 0:
-			result.append(line.split('#', 1)[0])
-		else:
-			result.append(line)
 		
-		result[count] = result[count].rstrip('\n')	# strip newline
-		result[count] = result[count].rstrip()		# strip trailing whitespaces
+		# strip '#' and all characters after it from that line
+		if line.find('#') >= 0:	
+			split_string = line.split('#', 1)
+			lines[count] = split_string[0]
+		
+		lines[count] = lines[count].rstrip('\n')	# strip newline
 		count += 1
-	return result
+	return lines
 
 
 # Function that converts all items in a list to a dictionary, which is then returned.	
-def parse_file(items):
-	print(items)
+def dict_process(items):
+	
 	# Dictionary holding the port number, a 1D array of hosts and a 2D arrays of action sets.
-	item_dictionary = {'Port': 0, 'Hosts': []}
+	item_dictionary = {'Port': '', 'Hosts': []}
 	
 	# variables for the action set
-	count = 0
+	count = 1
 	action = []
-	current_actionset_name = ""
+	current_actionset = ''
 	
 	for item in items:
-		# IF LINE STARTS WITH PORT, GET AND STORE DEFAULT PORT NUMBER
-		if item.find('PORT') == 0:
-			item_dictionary['Port'] = int(item.split()[-1])
-
-		# IF LINE STARTS WITH HOSTS, GET AND STORE HOST(S)
-		elif item.find('HOST') == 0:
+		# LINE STARTS WITH PORT, SO GET AND STORE DEFAULT PORT NUMBER.
+		if item.find('PORT') >= 0:
+			item_dictionary['Port'] = int(item.split('= ', 1)[1])
+		
+		# LINE STARTS WITH HOSTS, SO GET AND STORE HOST(S).
+		elif item.find('HOSTS') >= 0:
 			item = item.replace('HOSTS = ', '')
 			item_dictionary['Hosts'] = item.split(' ', item.count(' '))
-
-		# IF LINE STARTS WITH actionset, GET AND STORE Action	
-		elif item.find('actionset') == 0:
-			current_actionset_name = item.split(':')[0]
-			item_dictionary[ current_actionset_name ] = []
+			
+		# LINE STARTS WITH actionset, GET AND STORE Action.
+		elif item.find('actionset' + str(count) + ':') >= 0:
+			item_dictionary['Action Set ' + str(count)] = []
+			current_actionset = 'Action Set ' + str(count)
 			count += 1
 		
-		# Note to self: Do
-		elif item.count('\t') == 1:
-			item_dictionary[ current_actionset_name ].append( [item.strip()] )
+		elif item.count('\t') == 1 and not item == '\t':
+			item_dictionary[current_actionset].append([item.strip()])
 		
-		elif item.count('\t') == 2 and len(item_dictionary[ current_actionset_name ]) > 0:
-			item_dictionary[ current_actionset_name ][-1].append(item.strip())
+		elif item.count('\t') == 2 and len(item_dictionary[current_actionset]) > 0:
+			item_dictionary[current_actionset][-1].append(item.strip())
 		
 		
 	# All hosts with no specified port number get assigned the default port number.
@@ -98,44 +94,58 @@ def parse_file(items):
 
 # Function that receives a dictionary and executes all actionsets within it.
 def execute_action_sets(rdictionary):
-	actionsets = []	# List holding all the action sets.
+	actionsets = []		# List holding all the action sets.
+	action_failure = False		# If True, then do not execute the next actionset.
 	
 	for key in rdictionary:
-		if key.find('actionset') == 0:
+		if key.find('Action Set ') >= 0:
 			actionsets.append(key)
 	
-	for actionset in actionsets:
-		for action in rdictionary[actionset]:
+	for actionset in actionsets:			# Moving through the actionset.
+		for action in rdictionary[actionset]:	# Moving through the actions in the actionset.
 			
-			# External programs that do not depend on files.
+			# External programs that do not depend on other file(s).
 			if len(action) == 1:
 				arguments = action[0].split()
 				
-				if arguments[0].find('remote-') < 0: # Non-remote compiling.
-					print("Looking at", arguments)
-					if subprocess.run(arguments) == 0:
-						return
-					else:
-						print(subprocess.run(arguments, capture_output = True), '\n')
+				# Non-remote action.
+				if arguments[0].find('remote') < 0:
+					
+					try:	# Catch actions that subprocess.run() cannot handle.
+						action_failure = external_program_results(arguments, action_failure)
+					except:
+						print('Subprocess cannot process non command-line actions.')
+						action_failure = True
 						
-				if arguments[0].find('remote-') >= 0: # Remote compiling.
-					print(remote_function(arguments))
+				# Remote action.
+				else:
+					remote_argument = ' '.join(arguments)
+					remote_argument = remote_argument.split('-')[1]
+					
+					remote_function(remote_argument)
 				
 			
-			# External programs that do depend on files.
+			# External programs that do depend on other file(s).
 			if len(action) == 2:
 				arguments = action[0].split()
-				action[1] = action[1].lstrip('requires ')
+				action[1] = action[1].lstrip('requires')
+				
+				print('Splitting:', action[1])
 				required = action[1].split()
 				
 				count = 0
 				
-				if arguments[0].find('remote') < 0: # Non-remote compiling.
-					for argument in arguments:
+				# Non-remote action.
+				if arguments[0].find('remote') < 0: 	# Non-remote compiling.
+					for argument in arguments:	# Find the path of required files.
 						path = None
 						
-						if argument.find('.') >= 0:
+						print('Funny argument', arguments)
+						print('Funny required', required)
+						print('TEST')
+						if arguments[0].find('.'):
 							path = file_path(argument)
+							print(path, 'EXECUTING')
 						
 						if not path == None:
 							arguments[count] = path
@@ -143,15 +153,19 @@ def execute_action_sets(rdictionary):
 						count += 1
 						
 					
-					if not subprocess.call(arguments) == 0:
-						print('\n')
-						return
-					else:
-						output = subprocess.run(arguments, capture_output = True)
-						print(output, '\n')
-					
-				else: # Remote compiling
-					print('dab')	# Re					
+					try:	# Catch actions that subprocess.run() cannot handle.
+						action_failure = external_program_results(arguments, action_failure)
+					except:
+						print('Subprocess cannot process non command-line actions.')
+						action_failure = True
+							 
+				# Remote action.	
+				else:
+					print(remote_function(arguments))	
+		
+		if action_failure:	# An action(s) failed. Stop executing actionsets.
+			print('Action failure notification', '\n')
+			return actionsets		
 	
 	return actionsets
 
@@ -164,91 +178,87 @@ def file_path(filename):
 
 # Function that performes actions that require the server. 
 # Receives the action and a list of the necessary files.
-def write_file_to_server(sd, message):
-    # print(f"{GRN} --> {message} {RST}"))
-	message = message.split("remote-")[1]
-	sd.send(bytes(message, "utf-8"))
-	# sd.send(bytes(message, "utf-8"))
-    # if write(sd, message, strlen(message)) < 0:
-    #     return -1
-        
-    # SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
-	reply = sd.recv(2048)
-	if reply:
-		reply = reply.decode("utf-8")
-		print(CYN) 
-		print(f"{CYN} <-- {reply} {RST}") 
-    
-    # SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
-	status = sd.recv(2048)
-	if status:
-		status = status.decode("utf-8")
-		print(CYN) 
-		print(f"{CYN} <-- {status} {RST}") 
-
-    # return status
-
-
-
-
+def remote_function(argument):
+	print('Sending to server this:', argument)
+	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock_desc:
+		sock_desc.connect(server_addr)
+		sock_desc.sendall(bytes(argument, "utf-8"))
+		data = sock_desc.recv(1024)
+	
+	print('Received from server this:', repr(data), '\n')
+	
+# Print results of the external program. Also returns action execution failure if that occurs.
+def external_program_results(arguments, execution_failure):
+	output = subprocess.run(arguments, capture_output = True)
+	
+	# Printing the output of the execution in a readable format.
+	print('Arguments:', ' '.join(output.args))		# Input arguments.
+	print('Exit status:', output.returncode)		# Success/failure report.
+				
+	if not output.stdout.decode() == '':			# Prints output if they exist.
+		print('Output:', output.stdout.decode())
+		
+	if not output.stderr.decode() == '':			# Prints error and sets failure flag.
+		print('Error:', output.stderr.decode())
+		execution_failure = True
+	
+	print('')						# Just for formatting.
+	
+	return execution_failure
 ####################################################################################################
 
 
 def main():
+	global HOST
+	global PORT_NUM
+	global VERBOSE
+	global rakefile
 
+	# OPTION FLAGS
+	try:
+		opts, args = getopt.getopt(sys.argv[1:], "vhi:p:r:")
+		
+		for opt, arg in opts:
+			# HELP ( HOW TO USE )
+			if opt == '-h':
+				print('usage: rake-p.py -i <ip address> -p <port number> -r <rakefile>')
+				sys.exit()
+			# IP ADDRESS
+			elif opt == '-i':
+				HOST = arg
+			# RAKEFILE TO ANAYLSE
+			elif opt == '-r':
+				rakefile = arg
+			# PORT NUMBER
+			elif opt == "-p":
+				PORT_NUM = int(arg)
+			# VERBOSE - DEBUGGING
+			elif opt == "-v":
+				VERBOSE = True
+	except getopt.GetoptError:
+		print('usage: rakeserver.py -i <ip address> -p <port number> -r <rakefile>')
+		sys.exit(2)
+		
 	directory = os.getcwd()	# The working directory.
-	rakefile  = 'Rakefile'	# Will be used to store rakefile.
 	
 	if len(sys.argv) == 2:
 		rakefile = sys.argv[1]
 	
-	# print('\n', 'Looking at this file: ', rakefile)
+	print('\n', 'Looking at this file:', rakefile)
 		
 	string_list = fread(rakefile)
-	# print('\n', 'This is what was in the file\n', string_list)
+	###DEBUG###
+	print('\nThis is what was in the file:\n', string_list, '\n')
+	###DEBUG###
 
-	action_table = parse_file(string_list)
-	print(action_table)
-
-	actionsets_keys = []	# List holding all the action sets.
+	rake_dict = dict_process(string_list)
+	###DEBUG###
+	print('\nDictionary:','\n', rake_dict, '\n')
+	###DEBUG###
 	
-	for key in action_table:
-		if key.find('actionset') == 0:
-			actionsets_keys.append(key)
+	actionsets = []	# List holding all the action sets.
 			
-
-	# hostname = socket.gethostname()
-	# print(hostname)
-
-	# sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	sd.connect(('10.10.255.255', 12345))
-	# sd.connect(('ASUS', 12345))
-
-	for actionsets_key in actionsets_keys:
-		for action in action_table[ actionsets_key ]:
-            # EXECUTE ACTION ON SERVER
-			if action[0].find('remote-') == 0:
-				write_file_to_server(sd, action[0])
-            # EXECUTE ACTION ON LOCAL MACHINE
-			else:
-				os.system(action[0])
-
-	
-	# server_addr = ('localhost', port_num)
-	# with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock_desc:
-	# 	sock_desc.connect(server_addr)
-	# 	for actionset in actionsets:
-	# 		for action in action_table[actionset]:
-	# 			# sock_desc.send(bytes("Hello, world", "utf-8"))
-	# 			sock_desc.send(bytes(action[0], "utf-8"))
-	# 			data = sock_desc.recv(2048)
-	# 			if data:
-	# 				print(data.decode("utf-8"))
-			
-	# print('\n', 'This is a dictionary of the port, hosts and action sets\n', action_table)
-			
-	# a_sets = execute_action_sets(action_table)
+	a_sets = execute_action_sets(rake_dict)
 			
 main()
 
