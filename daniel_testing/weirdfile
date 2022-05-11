@@ -1,0 +1,28 @@
+# A typical Rakefile
+
+PORT  = 6238
+HOSTS = hostname1 hostname2 hostname3:6333
+
+actionset1:
+	echo starting actionset1
+	cal
+	cc -c program.c
+		requires program.c program.h allfunctions.h
+	cc -c square.c
+		requires square.c allfunctions.h
+	cc -c cube.c
+		requires cube.c allfunctions.h
+
+actionset2:
+	echo starting actionset2
+	cc -o program program.o square.o cube.o
+		requires program.o square.o cube.o
+		
+actionset3:
+	echo starting actionset3
+	remote-echo dabbing
+	cc -c program.c
+		requires program.c program.h allfunctions.h
+	should not work
+	echo hm
+	
