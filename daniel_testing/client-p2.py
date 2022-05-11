@@ -114,7 +114,7 @@ def execute_action_sets(rdictionary):
 					try:	# Catch actions that subprocess.run() cannot handle.
 						action_failure = external_program_results(arguments, action_failure)
 					except:
-						print('Subprocess cannot process non command-line actions.')
+						print('Subprocess cannot process non command-line actions.\n')
 						action_failure = True
 						
 				# Remote action.
@@ -130,8 +130,7 @@ def execute_action_sets(rdictionary):
 				arguments = action[0].split()
 				action[1] = action[1].lstrip('requires')
 				
-				print('Splitting:', action[1])
-				required = action[1].split()
+				print(action[1].split())
 				
 				count = 0
 				
@@ -140,12 +139,8 @@ def execute_action_sets(rdictionary):
 					for argument in arguments:	# Find the path of required files.
 						path = None
 						
-						print('Funny argument', arguments)
-						print('Funny required', required)
-						print('TEST')
 						if arguments[0].find('.'):
 							path = file_path(argument)
-							print(path, 'EXECUTING')
 						
 						if not path == None:
 							arguments[count] = path
@@ -156,7 +151,7 @@ def execute_action_sets(rdictionary):
 					try:	# Catch actions that subprocess.run() cannot handle.
 						action_failure = external_program_results(arguments, action_failure)
 					except:
-						print('Subprocess cannot process non command-line actions.')
+						print('Subprocess cannot process non command-line actions.\n')
 						action_failure = True
 							 
 				# Remote action.	
