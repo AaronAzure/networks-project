@@ -129,8 +129,9 @@ def execute_action_sets(rdictionary):
 			if len(action) == 2:
 				arguments = action[0].split()
 				action[1] = action[1].lstrip('requires')
+				required = action[1].split()
 				
-				print(action[1].split())
+				if VERBOSE == True: print("DEBUG: REQUIRED:", required) # DEBUGGING
 				
 				count = 0
 				
@@ -139,7 +140,7 @@ def execute_action_sets(rdictionary):
 					for argument in arguments:	# Find the path of required files.
 						path = None
 						
-						if arguments[0].find('.'):
+						if argument in required:
 							path = file_path(argument)
 						
 						if not path == None:
