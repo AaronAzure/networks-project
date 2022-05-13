@@ -55,7 +55,6 @@ def fread(filename):
 	return result
 
 
-
 def extract_info(items):
 	'''
 	Extract important information from @param items into a dictionary format
@@ -101,7 +100,7 @@ def extract_info(items):
 	for host in item_dictionary.get('Hosts'):
 		if host.find(':') >= 0:
 			item_dictionary['Hosts'][count] = (host.split(':', 1)[0], int(host.split(':', 1)[1]))
-		elif host is '':
+		elif host == '':
 			item_dictionary['Hosts'].remove(host)
 		else:
 			item_dictionary['Hosts'][count] = (host, item_dictionary['Port'])
@@ -299,6 +298,8 @@ def read_option_flags():
 
 def get_cost_from_server(server_port_tuple):
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	
+	print(server_port_tuple)
 	sd.connect( server_port_tuple )
 	sd.send(bytes("cost?", "utf-8"))
 
@@ -362,6 +363,7 @@ def main():
 
 				# EXECUTE ON CHEAPEST REMOTE HOST
 				print(f"{YEL} --- REMOTE EXECUTION --- {RST}")
+				print(f"executing order on {hosts[cheapest_host]}")
 				execute_on_server( hosts[cheapest_host] , action[0].split("remote-")[1])
 
 				
@@ -375,8 +377,6 @@ def main():
 			# GET COST FOR ACTION FROM EACH HOST (SERVER)
 			# if 
 		
-		
-	# a_sets = execute_action_sets(rake_dict)
 
 
 if __name__ == "__main__":
