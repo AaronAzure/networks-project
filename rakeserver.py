@@ -1,6 +1,7 @@
 import socket
 import sys, getopt
-import os
+import os, subprocess
+import random
 
 # port number
 HOST = 'localhost'
@@ -18,12 +19,31 @@ RST = "\033[0m"
 
 
 
-def main():
+def cost_for_execution():
+    '''
+    Returns the cost of executing a command on this server. 
+    So that the client chooses the server making the lowest 'bid', 
+    and will then (next) ask that server to execute the command. 
+    '''
+    return random.randint(1, 100)
+
+
+def find_file(filename):
+    '''
+    Function to find a file path in the working directory.
+    ''' 
+    for root, dirs, files in os.walk(os.getcwd()):
+        if filename in files:
+            print(os.path.join(root, filename))
+            return os.path.join(root, filename)
+    return filename
+
+
+def read_option_flags():
     global HOST
     global VERBOSE
     global PORT_NUM
     global SOCKET_NUM
-
     try:
         opts, args = getopt.getopt(sys.argv[1:], "vhi:p:")
         
@@ -44,6 +64,15 @@ def main():
     except getopt.GetoptError:
         print('usage: rakeserver.py -i <ip address> -p <port number>')
         sys.exit(2)
+
+
+def main():
+    global HOST
+    global VERBOSE
+    global PORT_NUM
+    global SOCKET_NUM
+
+    read_option_flags()
 
 
     # A TCP based echo server
@@ -68,16 +97,15 @@ def main():
         SOCKET_NUM += 1
         print(BOLD + " Accepted new client on sd=" + str(SOCKET_NUM) + RST)
         while True:
-            data = client.recv(2048)     #! BLOCKING
+            data = client.recv(1024)     #! BLOCKING
             # RECEIVED DATA FROM A CLIENT
             if data: 
                 # DECODE RECEIVED DATA
                 data = data.decode("utf-8")
                 print(f"{CYN} <-- {data}{RST}")
-                # print(CYN + " <-- " + data + RST)
                 
                 # INFORM CLIENT THAT IT HAS RECEIVED THE DATA
-                client.send(bytes("Received {" + data + "}", "utf-8"))
+                client.send(bytes(f"Server received { data }", "utf-8"))
                 
                 # EXECUTES COMMAND
                 return_code = os.system(data)

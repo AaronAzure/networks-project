@@ -6,6 +6,4 @@ HOSTS = localhost #vkajdslm
 actionset1: #potato
 	echo starting actionset1
 	remote-pwd
-	remote-lsadkm
-	cal
-		requires client-c.c potato.c
+	remote-cal

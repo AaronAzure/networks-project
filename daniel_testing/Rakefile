@@ -1,13 +1,16 @@
 
 
 PORT  = 12345
-HOSTS = localhost #vkajdslm
+HOSTS = localhost:22222 localhost:33333
 
 actionset1: #potato
 	echo starting actionset1
-	cal
-		requires client-c.c potato.c
 	remote-cal
-		requires client-c.c potato.c
-	remote-cc program.c # potato
-		requires program.c program.h allfunctions.h # potato
+	# remote-lakjsdnk
+	# remote-cal
+	# 	requires program.c program.h allfunctions.h # potato
+	# remote-cc program.c # potato
+
+actionset2: #potato
+	echo starting actionset2
+	remote-cal

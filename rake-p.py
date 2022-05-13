@@ -35,7 +35,7 @@ def fread(filename):
 	for line in lines:
 
 		# skip empty lines
-		if line == '\n':
+		if line == '\n' or line == '':
 			continue
 
 		# strip '#' and all characters after it from that line
@@ -110,14 +110,14 @@ def write_file_to_server(sd, message):
     #     return -1
         
     # SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
-	reply = sd.recv(2048)
+	reply = sd.recv(1024)
 	if reply:
 		reply = reply.decode("utf-8")
 		print(CYN) 
 		print(f"{CYN} <-- {reply} {RST}") 
     
     # SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
-	status = sd.recv(2048)
+	status = sd.recv(1024)
 	if status:
 		status = status.decode("utf-8")
 		print(CYN) 
