@@ -297,6 +297,9 @@ def read_option_flags():
 
 
 def get_cost_from_server(server_port_tuple):
+	'''
+	Return the cost of executing a command on the specified server.
+	'''
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	
 	print(server_port_tuple)
@@ -331,13 +334,12 @@ def main():
 	###DEBUG###
 	if VERBOSE:
 		print('\nThis is what was in the file:\n', string_list, '\n')
-	###DEBUG###
 
 	rake_dict = extract_info(string_list)
+	
 	###DEBUG###
 	if VERBOSE:
 		print('\nDictionary:','\n', rake_dict, '\n')
-	###DEBUG###
 	
 	hosts = rake_dict['Hosts']
 	actionset_names = get_action_set_names(rake_dict)

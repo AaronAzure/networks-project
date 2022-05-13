@@ -81,6 +81,7 @@ char file_path[MAX_FILE_NAME];
 char    rackfile_name[MAX_FILE_NAME];
 char    host[16];
 int     port_num = 12345;
+int     default_port;
 int     verbose = false;
 
 Rackfile rackfile;
@@ -231,7 +232,7 @@ void debug_rackfile()
         printf("%s:\n", rackfile.actionSets[i].actionSetName);
         for (int a=0 ; a<rackfile.actionSets[i].nActions ; a++)
         {
-            printf(" - (%s)\t%s\n", rackfile.actionSets[i].actions[a].isLocal ? "true" : "false", rackfile.actionSets[i].actions[a].action);
+            printf(" - (%s)\t|%s|\n", rackfile.actionSets[i].actions[a].isLocal ? "true" : "false", rackfile.actionSets[i].actions[a].action);
             if (rackfile.actionSets[i].actions[a].nRequiredFiles > 0)
             {
                 printf("  required files:\n");
@@ -267,7 +268,6 @@ void parse_file(char *filename)
         int action_set_ind = 0;
         int action_ind    = 0;
         int *n_action_set = &rackfile.nActionSets;
-        int default_port;
         while (fgets(line, sizeof(line), fp) != NULL) 
         {
             // STORE NON-EMPTY LINES
@@ -338,8 +338,13 @@ void parse_file(char *filename)
                         case 1: // ACTION LINE
 
                             trim_leading(line);
+
                             if (line[strlen(line) - 1] == '\n')
                                 line[strlen(line) - 1] = '\0';
+
+							// EMPTY LINE ( ONLY HAD TABS)
+							if (strcmp(line, "") == 0)
+								continue;
 
                             if (starts_with(line, "remote-"))
                             {
@@ -360,10 +365,16 @@ void parse_file(char *filename)
                             if (action_ind == 0)
                                 continue;
                             
-                            action_ind--;
+                            action_ind--;	// PREVIOUS ACTION
                             trim_leading(line);
+								
                             if (line[strlen(line) - 1] == '\n')
                                 line[strlen(line) - 1] = '\0';
+
+							// EMPTY LINE ( ONLY HAD TABS)
+							if (strcmp(line, "") == 0)
+								continue;
+
                             int len = strlen("requires");
                             char *substring = line;
                             substring += len;
@@ -392,10 +403,32 @@ void parse_file(char *filename)
     }
     else
     {
-        printf("!! ERROR: could not open %s\n", filename);
+		perror("fopen:");
     }
 }
 
+
+// int write_file_to_server(int sd, char message[])
+// {
+//     printf(GRN);
+//     printf(" --> %s\n", message);
+//     printf(RESET);
+
+//     if (write(sd, message, strlen(message)) < 0) 
+//         return EXIT_FAILURE;
+        
+//     // SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
+//     char server_reply[1024];
+//     read(sd, server_reply , 1024);
+//     printf(CYN); printf(" <-- %s\n", server_reply); printf(RESET);
+    
+//     // SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
+//     char action_status[1024];
+//     read(sd, action_status , 1024);
+//     printf(CYN); printf(" <-- %s\n", action_status); printf(RESET);
+
+//     return atoi(action_status);
+// }
 
 int write_file_to_server(int sd, char message[])
 {
@@ -416,11 +449,71 @@ int write_file_to_server(int sd, char message[])
     read(sd, action_status , 1024);
     printf(CYN); printf(" <-- %s\n", action_status); printf(RESET);
 
+	shutdown(sd, SHUT_RDWR);
+    close(sd);
+
     return atoi(action_status);
-    // return EXIT_SUCCESS;
 }
 
+int establish_socket(char *host, int port)
+{
+	struct hostent     *hp = gethostbyname(host);
+	
+    if (hp == NULL) 
+    {
+        fprintf(stderr,"rlogin: unknown host\n");
+        exit(2);
+    }
 
+	// CREATE SOCKET
+    //  ASK OUR OS KERNEL TO ALLOCATE RESOURCES FOR A SOCKET
+    int sd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sd < 0) 
+    {
+        perror("rlogin: socket");
+        exit(3);
+    }
+
+    //  INITIALIZE FILEDS OF A STRUCTURE USED TO CONTACT SERVER
+    struct sockaddr_in server;
+
+    // memset(&server, 0, sizeof(server));
+    memcpy(&server.sin_addr, hp->h_addr, hp->h_length);
+    server.sin_family  = hp->h_addrtype;
+	server.sin_port = htons( port );
+
+    //  CONNECT TO SERVER
+    if (connect(sd, (struct sockaddr *)&server, sizeof(server)) < 0) 
+    {
+        perror("rlogin: connect");
+        exit(4);
+    }
+
+	return sd;
+}
+/**
+ * @brief Return the cost of executing a command on the specified server.
+ * 
+ * @param server 
+ * @param port 
+ * @return int 
+ */
+int get_cost_from_server(char *host, int port)
+{
+	int sd = establish_socket(host, port);
+    
+	if (write(sd, "cost?", strlen("cost?")) < 0) 
+		return -1;
+
+	// SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
+    char server_reply[1024];
+    read(sd, server_reply , 1024);
+
+    shutdown(sd, SHUT_RDWR);
+    close(sd);
+
+	return atoi(server_reply);
+}
 
 
 int main(int argc, char *argv[])
@@ -467,6 +560,55 @@ int main(int argc, char *argv[])
         printf(RESET);
     }
 
+
+	bool error_in_actionset = false;
+	for (int i=0 ; i<rackfile.nActionSets && !error_in_actionset; i++)
+    {
+        for (int j=0 ; j<rackfile.actionSets[i].nActions && !error_in_actionset; j++)
+        {
+			// * IF ACTION IS REMOTE, THEN CHECK COST FROM EACH SERVER
+			if (rackfile.actionSets[i].actions[j].isLocal)
+			{
+				int cheapest_host = 0;
+				int lowest_cost = 1000;
+
+				for (int h=0 ; h<rackfile.nHosts ; h++)
+				{
+					int cost = get_cost_from_server(rackfile.hosts[h].host, rackfile.hosts[h].port);
+					if (verbose)
+						printf("(%s, %i) = %i\n",rackfile.hosts[h].host, rackfile.hosts[h].port, cost);
+					
+					// REMEMBER THE REMOTE HOST RETURNING THE LOWEST COST TO RUN THE COMMAND
+					if (cost < lowest_cost)
+					{
+						lowest_cost = cost;
+						cheapest_host = h;
+					}
+				}
+
+				// EXECUTE ON CHEAPEST REMOTE HOST
+				printf("%s --- REMOTE EXECUTION --- \n%s", YEL, RESET);
+				printf("executing order on %s (%i)\n", rackfile.hosts[cheapest_host].host, cheapest_host);
+				int sd = establish_socket(rackfile.hosts[cheapest_host].host, rackfile.hosts[cheapest_host].port);
+				if (write_file_to_server(sd, rackfile.actionSets[i].actions[j].action) != 0)
+					error_in_actionset = true;
+				// execute_on_server( hosts[cheapest_host] , action[0].split("remote-")[1]);
+			}
+			// * ELSE, EXECUTE ON LOCAL SERVER
+			else
+			{
+				printf("%s --- LOCAL EXECUTION --- \n%s", YEL, RESET);
+				int sd = establish_socket("localhost", default_port);
+				if (write_file_to_server(sd, rackfile.actionSets[i].actions[j].action) != 0)
+					error_in_actionset = true;
+				// execute_on_server( ('localhost' , DEFAULT_PORT) , action[0])
+			}
+		}
+	}
+
+	if (true)		//! DELETE
+		return 0;	//! DELETE
+
     // EXECUTING
 
 	//  LOCATE INFORMATION ABOUT THE REQUIRED HOST (ITS IP ADDRESS)
@@ -507,32 +649,32 @@ int main(int argc, char *argv[])
         exit(4);
     }
 
-    bool error_in_actionset = false;
-    for (int i=0 ; i<rackfile.nActionSets && !error_in_actionset; i++)
-    {
-        for (int j=0 ; j<rackfile.actionSets[i].nActions && !error_in_actionset; j++)
-        {
-            // EXECUTE ACTION ON SERVER
-            if (rackfile.actionSets[i].actions[j].isLocal)
-            {
-                if (write_file_to_server(sd, rackfile.actionSets[i].actions[j].action) != 0)
-                {
-                    error_in_actionset = true;
-                    printf("  ERROR IN SERVER: STOP EXECUTING REMAINING ACTION(S)\n");
-                }
-            }
-            // EXECUTE ACTION ON LOCAL MACHINE
-            else
-            {
-                printf(RESET);
-                if (system(rackfile.actionSets[i].actions[j].action))
-                {
-                    error_in_actionset = true;
-                    printf("  ERROR ON LOCAL: STOP EXECUTING REMAINING ACTION(S)\n");
-                }
-            }
-        }
-    }
+    // bool error_in_actionset = false;
+    // for (int i=0 ; i<rackfile.nActionSets && !error_in_actionset; i++)
+    // {
+    //     for (int j=0 ; j<rackfile.actionSets[i].nActions && !error_in_actionset; j++)
+    //     {
+    //         // EXECUTE ACTION ON SERVER
+    //         if (rackfile.actionSets[i].actions[j].isLocal)
+    //         {
+    //             if (write_file_to_server(sd, rackfile.actionSets[i].actions[j].action) != 0)
+    //             {
+    //                 error_in_actionset = true;
+    //                 printf("  ERROR IN SERVER: STOP EXECUTING REMAINING ACTION(S)\n");
+    //             }
+    //         }
+    //         // EXECUTE ACTION ON LOCAL MACHINE
+    //         else
+    //         {
+    //             printf(RESET);
+    //             if (system(rackfile.actionSets[i].actions[j].action))
+    //             {
+    //                 error_in_actionset = true;
+    //                 printf("  ERROR ON LOCAL: STOP EXECUTING REMAINING ACTION(S)\n");
+    //             }
+    //         }
+    //     }
+    // }
     shutdown(sd, SHUT_RDWR);
     close(sd);
 

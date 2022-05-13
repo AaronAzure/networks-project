@@ -146,6 +146,7 @@ def main():
 				elif not execution.stderr.decode() == '':
 					return_code += '\n\tError:\n' + execution.stderr.decode()
 					
+				print(">", repr(execution.stdout.decode('utf-8')))
 				print("return value = " + str(return_code))
 				
 				# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
