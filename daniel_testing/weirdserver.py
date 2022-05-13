@@ -106,8 +106,8 @@ def main():
 				
 				#* CLIENT ASKING FOR QUOTE/COST FOR EXECUTING COMMAND
 				if data == "cost?":
-					print("- calculating cost")
 					cost = cost_for_execution()
+					print("- cost =", cost)
 					client.send(bytes( f"{cost}" , "utf-8"))
 					continue
 

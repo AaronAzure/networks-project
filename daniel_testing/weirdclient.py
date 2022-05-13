@@ -96,24 +96,15 @@ def extract_info(items):
 		elif item.count('\t') == 2 and len(item_dictionary[current_actionset]) > 0:
 			item_dictionary[current_actionset][-1].append(item.strip())
 		
-	# # All hosts with no specified port number get assigned the default port number.
-    # count = 0
-    # for host in item_dictionary.get('Hosts'):
-    #     if host.find(':') >= 0:
-    #         item_dictionary['Hosts'][count] = (host.split(':', 1)[0], int(host.split(':', 1)[1]))
-    #     elif host is '':
-    #         item_dictionary['Hosts'].remove(host)
-    #     else:
-    #         item_dictionary['Hosts'][count] = (host, item_dictionary['Port'])
-
-    #     count += 1
 	# All hosts with no specified port number get assigned the default port number.
 	count = 0
 	for host in item_dictionary.get('Hosts'):
 		if host.find(':') >= 0:
-			item_dictionary['Hosts'][count] = [host.split(':', 1)[0], int(host.split(':', 1)[1])]
+			item_dictionary['Hosts'][count] = (host.split(':', 1)[0], int(host.split(':', 1)[1]))
+		elif host is '':
+			item_dictionary['Hosts'].remove(host)
 		else:
-			item_dictionary['Hosts'][count] = [host, item_dictionary['Port']]
+			item_dictionary['Hosts'][count] = (host, item_dictionary['Port'])
 		count += 1
 			
 	return item_dictionary
@@ -186,7 +177,7 @@ def execute_action_sets(rdictionary):
 					remote_argument = ' '.join(arguments)
 					
 					execute_on_server('localhost', DEFAULT_PORT, remote_argument, required)
-							 
+							
 				# Remote action.	
 				else:
 					print(f"{YEL} --- REMOTE EXECUTION --- {RST}")
@@ -236,7 +227,7 @@ def external_program_results(arguments, execution_failure):
 	return execution_failure
 	
 
-def execute_on_server(server, port, argument, requirements = None):
+def execute_on_server(server_port_tuple, argument, requirements = None):
 	'''
 	Function that performes actions that require the server. 
 	Receives the action and a list of the necessary files.
@@ -251,7 +242,8 @@ def execute_on_server(server, port, argument, requirements = None):
 	print("Going to send this to server:", argument)
 	
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	sd.connect((server, port))
+	sd.connect( server_port_tuple )
+	# sd.connect((server, port))
 	sd.send(bytes(argument, "utf-8"))
 		
 	# SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
@@ -305,18 +297,16 @@ def read_option_flags():
 		sys.exit(2)
 
 
-def get_cost_from_server(host, port):
+def get_cost_from_server(server_port_tuple):
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	sd.connect((host, port))
+	sd.connect( server_port_tuple )
 	sd.send(bytes("cost?", "utf-8"))
 
 	reply = sd.recv(1024)
 	
 	if reply:
 		reply_cost = reply.decode("utf-8")
-		# print('-cost received')
 		return int(reply_cost)
-		# return int(reply)
 	return -1
 
 ####################################################################################################
@@ -363,7 +353,7 @@ def main():
 				lowest_cost = 1000
 
 				for i in range(len(hosts)):
-					cost = get_cost_from_server(hosts[i][0], hosts[i][1])
+					cost = get_cost_from_server(hosts[i])
 					
 					# REMEMBER THE REMOTE HOST RETURNING THE LOWEST COST TO RUN THE COMMAND
 					if cost < lowest_cost:
@@ -372,13 +362,13 @@ def main():
 
 				# EXECUTE ON CHEAPEST REMOTE HOST
 				print(f"{YEL} --- REMOTE EXECUTION --- {RST}")
-				execute_on_server( hosts[cheapest_host][0] , hosts[cheapest_host][1] , action[0].split("remote-")[1])
+				execute_on_server( hosts[cheapest_host] , action[0].split("remote-")[1])
 
 				
 			# * ELSE, EXECUTE ON LOCAL SERVER
 			else:
 				print(f"{YEL} --- LOCAL EXECUTION --- {RST}")
-				execute_on_server( 'localhost' , DEFAULT_PORT , action[0])
+				execute_on_server( ('localhost' , DEFAULT_PORT) , action[0])
 
 			# * IF ACTION HAS REQUIREMENT FILE(S)
 			# if len(action) > 1:
@@ -390,6 +380,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+	main()
 
 # NOTE: SHOULD WORK WITH `python3 client-p.py`

@@ -1,7 +1,7 @@
 
 
 PORT  = 12345
-HOSTS = localhost:22222 localhost:33333
+HOSTS = 127.0.0.1:22222 localhost:33333
 
 actionset1: #potato
 	echo starting actionset1
