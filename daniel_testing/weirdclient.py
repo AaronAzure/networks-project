@@ -6,6 +6,7 @@
 import os, getopt
 import subprocess
 import sys
+import select
 import socket
 import time #! DELETE
 
@@ -123,75 +124,6 @@ def get_action_set_names(rdictionary):
 	return actionsets
 
 
-def execute_action_sets(rdictionary):
-	'''
-	Function that receives a dictionary and executes all actionsets within it.
-	'''
-	actionsets = []		# List holding all the action sets.
-	action_failure = False		# If True, then do not execute the next actionset.
-	
-	for key in rdictionary:
-		if key.find('Action Set ') >= 0:
-			actionsets.append(key)
-	
-	global HOST
-	global DEFAULT_PORT
-	for actionset in actionsets:			# Moving through the actionset.
-		for action in rdictionary[actionset]:	# Moving through the actions in the actionset.
-			
-			# External programs that do not depend on other file(s).
-			if len(action) == 1:
-				arguments = action[0].split()
-				
-				# Non-remote action.
-				if arguments[0].find('remote') < 0:
-					print(f"{YEL} --- LOCAL EXECUTION --- {RST}")
-					remote_argument = ' '.join(arguments)
-					
-					execute_on_server('localhost', DEFAULT_PORT, remote_argument)
-						
-				# Remote action.
-				else:
-					print(f"{YEL} --- REMOTE EXECUTION --- {RST}")
-					remote_argument = ' '.join(arguments)
-					remote_argument = remote_argument.split('-')[1]
-					
-					execute_on_server(HOST, DEFAULT_PORT, remote_argument)
-				
-			
-			# External programs that do depend on other file(s).
-			if len(action) == 2:
-				arguments = action[0].split()
-				action[1] = action[1].lstrip('requires')
-				required = action[1].split()
-				
-				if VERBOSE == True: 
-					print("DEBUG: REQUIRED:", required) # DEBUGGING
-				
-				count = 0
-				
-				# Non-remote action.
-				if arguments[0].find('remote') < 0: 	# Non-remote compiling.
-					print(f"{YEL} --- LOCAL EXECUTION --- {RST}")
-					remote_argument = ' '.join(arguments)
-					
-					execute_on_server('localhost', DEFAULT_PORT, remote_argument, required)
-							
-				# Remote action.	
-				else:
-					print(f"{YEL} --- REMOTE EXECUTION --- {RST}")
-					remote_argument = ' '.join(arguments)
-					remote_argument = remote_argument.split('-')[1]
-					
-					execute_on_server(HOST, DEFAULT_PORT, remote_argument, required)	
-		
-		if action_failure:	# An action(s) failed. Stop executing actionsets.
-			print('Action failure notification', '\n')
-			return actionsets		
-	
-	return actionsets
-
-
 def file_path(filename):
 	'''
 	Function to find a file path in the working directory.
@@ -224,7 +156,7 @@ def external_program_results(arguments, execution_failure):
 	print('')						# Just for formatting.
 	
 	return execution_failure
-	
+
 
 def execute_on_server(server_port_tuple, argument, requirements = None):
 	'''
@@ -232,37 +164,153 @@ def execute_on_server(server_port_tuple, argument, requirements = None):
 	Receives the action and a list of the necessary files.
 	'''
 	# If there are file requirements, add them as a string to arguments, seperated by ' Requirements: '.
-	if not requirements == None:
+	if requirements != None:
 		argument += ' Requirements: '
 		for requirement in requirements:
 			argument += requirement
 			argument += ' '
 	
 	print("Going to send this to server:", argument)
-	
+
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	sd.connect( server_port_tuple )
-	# sd.connect((server, port))
-	sd.send(bytes(argument, "utf-8"))
 		
-	# SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
-	reply = sd.recv(1024)
-	time.sleep(1)	#! DELETE
-	if reply:
-		reply = reply.decode("utf-8")
-		print(CYN)
-		print(f"{CYN} {reply} {RST}")
+	sd.setblocking(False)
 	
-	# SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
-	status = sd.recv(1024)
-	time.sleep(1)	#! DELETE
-	if status:
-		status = status.decode("utf-8")
-		print(CYN) 
-		print(f"{CYN} {status} {RST}")
+	inputs 	= [sd]
+	outputs = [sd]
 	
+	while inputs:
+		readable, writable, exceptional = select.select(inputs, outputs, inputs)
+
+		# WRITE TO SERVER, WHEN CONNECTED
+		for sd in writable:
+			sd.send(bytes(argument, "utf-8"))
+			outputs.remove(sd)
+		
+		# READ FROM SERVER, WHILST CONNECTED
+		for sd in readable:
+
+			# SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
+			reply = sd.recv(8192)
+			if reply:
+				reply = reply.decode("utf-8")
+				print(f"{CYN} {reply} {RST}")
+			
+			# SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
+			status = sd.recv(8192)
+			if status:
+				status = status.decode("utf-8")
+				print(f"{CYN} {status} {RST}")
+
+			sd.close()
+			inputs.remove(sd)
+			break
+		
+		# READ FROM SERVER, WHILST CONNECTED
+		for sd in exceptional:
+			outputs.remove(sd)
+			inputs.remove(sd)
+			break
+
+	return
 	
-	#print('Arguments:', ' '.join(status.args))
+
+# def execute_on_server(server_port_tuple, argument, requirements = None):
+	# 	'''
+	# 	Function that performes actions that require the server. 
+	# 	Receives the action and a list of the necessary files.
+	# 	'''
+	# 	# If there are file requirements, add them as a string to arguments, seperated by ' Requirements: '.
+	# 	if not requirements == None:
+	# 		argument += ' Requirements: '
+	# 		for requirement in requirements:
+	# 			argument += requirement
+	# 			argument += ' '
+		
+	# 	print("Going to send this to server:", argument)
+		
+	# 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	# 	sd.connect( server_port_tuple )
+	# 	sd.send(bytes(argument, "utf-8"))
+			
+	# 	# SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
+	# 	reply = sd.recv(1024)
+	# 	time.sleep(1)	#! DELETE
+	# 	if reply:
+	# 		reply = reply.decode("utf-8")
+	# 		print(CYN)
+	# 		print(f"{CYN} {reply} {RST}")
+		
+	# 	# SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
+	# 	status = sd.recv(1024)
+	# 	time.sleep(1)	#! DELETE
+	# 	if status:
+	# 		status = status.decode("utf-8")
+	# 		print(CYN) 
+	# 		print(f"{CYN} {status} {RST}")
+		
+	# 	sd.close()
+	
+
+# def get_all_cost_nonblocking(server_port_tuple, argument, requirements = None):
+def get_cheapest_host(hosts):
+	'''
+	Function that performes actions that require the server. 
+	Receives the action and a list of the necessary files.
+	'''
+	
+	inputs = []
+	outputs = []
+	for i in range(len(hosts)):
+		sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		sd.connect( hosts[i] )
+		
+		sd.setblocking(False)
+		inputs.append(sd)
+		outputs.append(sd)
+
+	cheapest_host = hosts[0]
+	lowest_cost = float('inf')
+
+	# if VERBOSE:
+	print(f"\n{GRN} non-blocking: {RST}")
+	
+	while inputs:
+		readable, writable, exceptional = select.select(inputs, outputs, inputs)
+
+		# WRITE TO SERVER, WHEN CONNECTED
+		for sd in writable:
+			# sd.send(bytes(argument, "utf-8"))
+			sd.send(bytes("cost?", "utf-8"))
+			outputs.remove(sd)
+		
+		# READ FROM SERVER, WHILST CONNECTED
+		for sd in readable:
+			print(f"{CYN} -- got reply -- {RST}")
+			reply = sd.recv(1024)
+			reply_cost = int( reply.decode("utf-8") )
+
+			# CHEAPEST HOST TO RUN COMMAND/ACTION
+			if reply_cost < lowest_cost:
+				lowest_cost = reply_cost
+				cheapest_host = sd.getpeername()
+
+			sd.close()
+			inputs.remove(sd)
+			break
+		
+		# READ FROM SERVER, WHILST CONNECTED
+		for sd in exceptional:
+			outputs.remove(sd)
+			inputs.remove(sd)
+			break
+			
+	# if VERBOSE:
+	print(f"{GRN} done non-blocking actions {RST}")
+	
+	# RETURN REMOTE ADDRESS CHEAPEST HOST TO RUN COMMAND/ACTION
+	return cheapest_host
 	
 
 def read_option_flags():
@@ -307,10 +355,12 @@ def get_cost_from_server(server_port_tuple):
 	sd.send(bytes("cost?", "utf-8"))
 
 	reply = sd.recv(1024)
+	sd.close()
 	
 	if reply:
 		reply_cost = reply.decode("utf-8")
 		return int(reply_cost)
+	
 	return -1
 
 ####################################################################################################
@@ -348,36 +398,35 @@ def main():
 		print(f"hosts = {hosts}")
 		print(f"actionset_names = {actionset_names}")
 	
+	# get_cheapest_host( hosts )
+
+	# # PERFORM ACTION ON SERVER ( HOSTS )
 	for actionset in actionset_names:
 		for action in rake_dict[ actionset ]:
+			
 			# * IF ACTION IS REMOTE, THEN CHECK COST FROM EACH SERVER
 			if action[0].find('remote-') == 0:
-				cheapest_host = 0
-				lowest_cost = 1000
 
-				for i in range(len(hosts)):
-					cost = get_cost_from_server(hosts[i])
-					
-					# REMEMBER THE REMOTE HOST RETURNING THE LOWEST COST TO RUN THE COMMAND
-					if cost < lowest_cost:
-						lowest_cost = cost
-						cheapest_host = i
+				cheapest_host = get_cheapest_host( hosts ) # cost simulateonusly
 
 				# EXECUTE ON CHEAPEST REMOTE HOST
 				print(f"{YEL} --- REMOTE EXECUTION --- {RST}")
-				print(f"executing order on {hosts[cheapest_host]}")
-				execute_on_server( hosts[cheapest_host] , action[0].split("remote-")[1])
+				print(f"executing order on {cheapest_host}")
+				execute_on_server( cheapest_host , action[0].split("remote-")[1])
+				sleep 5
 
 				
 			# * ELSE, EXECUTE ON LOCAL SERVER
 			else:
 				print(f"{YEL} --- LOCAL EXECUTION --- {RST}")
 				execute_on_server( ('localhost' , DEFAULT_PORT) , action[0])
-
-			# * IF ACTION HAS REQUIREMENT FILE(S)
-			# if len(action) > 1:
-			# GET COST FOR ACTION FROM EACH HOST (SERVER)
-			# if 
+		
+		#! WAIT UNTIL AFTER ALL CHILD PROCESSES HAVE EXECUTED, 
+		#! CHECK IF ANY ERROR, OTHERWISE CONTINUE TO NEXT ACTIONSET
+	# 		# * IF ACTION HAS REQUIREMENT FILE(S)
+	# 		# if len(action) > 1:
+	# 		# GET COST FOR ACTION FROM EACH HOST (SERVER)
+	# 		# if 
 		
 
 

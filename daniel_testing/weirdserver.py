@@ -101,7 +101,6 @@ def main():
 			data = client.recv(1024)     #! BLOCKING
 			# RECEIVED DATA FROM A CLIENT
 			if data: 
-				time.sleep(1)	#! DELETE
 				data = data.decode("utf-8")
 				
 				#* CLIENT ASKING FOR QUOTE/COST FOR EXECUTING COMMAND
@@ -122,8 +121,6 @@ def main():
 
 				if VERBOSE:
 					print('arguments:', arguments, '\nrequirements:', requirements)
-
-
 				
 				# Find the file in the server's working directory.
 				count = 0
@@ -146,7 +143,6 @@ def main():
 				elif not execution.stderr.decode() == '':
 					return_code += '\n\tError:\n' + execution.stderr.decode()
 					
-				print(">", repr(execution.stdout.decode('utf-8')))
 				print("return value = " + str(return_code))
 				
 				# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
