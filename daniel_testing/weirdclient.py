@@ -399,7 +399,7 @@ def main():
 		print(f"hosts = {hosts}")
 		print(f"actionset_names = {actionset_names}")
 	
-	# get_cheapest_host( hosts )
+	start_time = time.time()
 
 	# # PERFORM ACTION ON SERVER ( HOSTS )
 	for actionset in actionset_names:
@@ -407,19 +407,17 @@ def main():
 
 		for action in rake_dict[ actionset ]:
 			pid = os.fork()
-
 			# CHILD PROCESS
 			if pid == 0:
 				#* IF ACTION IS REMOTE, THEN CHECK COST FROM EACH SERVER
 				if action[0].find('remote-') == 0:
-
 					cheapest_host = get_cheapest_host( hosts ) # cost simulateonusly
 
 					# EXECUTE ON CHEAPEST REMOTE HOST
 					print(f"{YEL} --- REMOTE EXECUTION --- {RST}")
 					print(f"executing order on {cheapest_host}")
 					execute_on_server( cheapest_host , action[0].split("remote-")[1])
-				# * ELSE, EXECUTE ON LOCAL SERVER
+				#* ELSE, EXECUTE ON LOCAL SERVER
 				else:
 					print(f"{YEL} --- LOCAL EXECUTION --- {RST}")
 					execute_on_server( ('localhost' , DEFAULT_PORT) , action[0])
@@ -432,14 +430,16 @@ def main():
 
 		# WAIT TILL ALL ACTIONS HAVE BEEN EXECUTED
 		while processes:
-			pid, exit_code = os.wait()
+			pid, exit_code = os.waitpid(-1, 0)
 			if pid != 0:
 				# print(pid, exit_code//256)
 				processes.remove(pid)
 				if (exit_code >> 8) != 0:
 					break
 
-		
+	print(f"{YEL}----------------------------------{RST}")
+	print(f"{YEL}  EXECUTION TIME = {(time.time() - start_time):.2f}s{RST}")
+	print(f"{YEL}----------------------------------{RST}")
 		#! WAIT UNTIL AFTER ALL CHILD PROCESSES HAVE EXECUTED, 
 		#! CHECK IF ANY ERROR, OTHERWISE CONTINUE TO NEXT ACTIONSET
 	# 		# * IF ACTION HAS REQUIREMENT FILE(S)
