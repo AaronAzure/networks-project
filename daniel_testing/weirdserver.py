@@ -98,7 +98,7 @@ def main():
 		SOCKET_NUM += 1
 		print(BOLD + " Accepted new client on sd=" + str(SOCKET_NUM) + RST)
 		while True:
-			data = client.recv(1024)     #! BLOCKING
+			data = client.recv(2048)     #! BLOCKING
 			# RECEIVED DATA FROM A CLIENT
 			if data: 
 				data = data.decode("utf-8")
@@ -112,6 +112,7 @@ def main():
 
 				# DECODE RECEIVED DATA
 				pid = os.fork()
+				# CHILD PROCESS DEALS WITH CURRENT ACTION
 				if pid == 0:
 					data = data.split(' Requirements:')
 					arguments = data[0].split()
@@ -142,19 +143,20 @@ def main():
 					
 					out, err = execution.communicate()
 					
-					return_code = '\n\tExit status: ' + str(execution.returncode)
+					# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
+					return_code = str(execution.returncode)
+					client.send(bytes(str(return_code), "utf-8"))
 					
 					if out != None:
-						return_code += '\n\tOutput:\n' + out.decode("utf-8")
+						return_output = out.decode("utf-8")
 						
 					elif err != None:
-						return_code += '\n\tError:\n' + err.decode("utf-8")
+						return_output = err.decode("utf-8")
 						
-					print("return value = " + str(return_code))
-					
-					# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
-					client.send(bytes(str(return_code), "utf-8"))
+					# INFORM CLIENT THE RETURN OUTPUT OF EXECUTING THE COMMAND
+					client.send(bytes(return_output, "utf-8"))
 					sys.exit(0)
+				# PARENT PROCESS LISTENS FOR OTHER CLIENT REQUEST(S)
 				else:
 					break
 			# FINISHED RECEIVING DATA FROM CLIENT

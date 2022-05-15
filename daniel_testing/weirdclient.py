@@ -235,23 +235,25 @@ def execute_on_server(server_port_tuple, argument, requirements = None):
 	sd.send(bytes(argument, "utf-8"))
 		
 	# SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
-	reply = sd.recv(1024)
-	time.sleep(1)	#! DELETE
+	reply = sd.recv(2048)
 	if reply:
 		reply = reply.decode("utf-8")
-		print(CYN)
-		print(f"{CYN} {reply} {RST}")
+		print(f"{CYN}reply = {reply} {RST}")
 	
-	# SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
-	status = sd.recv(1024)
-	time.sleep(1)	#! DELETE
+	# SERVER INFORMS CLIENT THE STATUS OF EXECUTING ACTION
+	status = sd.recv(2048)
 	if status:
 		status = status.decode("utf-8")
-		print(CYN) 
-		print(f"{CYN} {status} {RST}")
+		print(f"{CYN} status = {status} {RST}")
+	
+	# SERVER INFORMS CLIENT THE OUTPUT OF EXECUTING ACTION
+	output = sd.recv(2048)
+	if output:
+		output = output.decode("utf-8")
+		print(f"{CYN} output = {output} {RST}")
 	
 	sd.close()
-	sys.exit(0)
+	sys.exit(status)
 	
 
 # def get_all_cost_nonblocking(server_port_tuple, argument, requirements = None):
@@ -289,7 +291,7 @@ def get_cheapest_host(hosts):
 		# READ FROM SERVER, WHILST CONNECTED
 		for sd in readable:
 			print(f"{CYN} -- got reply -- {RST}")
-			reply = sd.recv(1024)
+			reply = sd.recv(2048)
 			reply_cost = int( reply.decode("utf-8") )
 
 			# CHEAPEST HOST TO RUN COMMAND/ACTION
@@ -355,7 +357,7 @@ def get_cost_from_server(server_port_tuple):
 	sd.connect( server_port_tuple )
 	sd.send(bytes("cost?", "utf-8"))
 
-	reply = sd.recv(1024)
+	reply = sd.recv(2048)
 	sd.close()
 	
 	if reply:
@@ -402,8 +404,12 @@ def main():
 	start_time = time.time()
 
 	# # PERFORM ACTION ON SERVER ( HOSTS )
+	error_in_actionset = False
 	for actionset in actionset_names:
 		processes = []
+		if error_in_actionset:
+			print(f"{RED}  ERROR IN AN ACTION{RST}")
+			break
 
 		for action in rake_dict[ actionset ]:
 			pid = os.fork()
@@ -416,13 +422,13 @@ def main():
 					# EXECUTE ON CHEAPEST REMOTE HOST
 					print(f"{YEL} --- REMOTE EXECUTION --- {RST}")
 					# print(f"executing order on {cheapest_host}")
-					execute_on_server( cheapest_host , action[0].split("remote-")[1])
+					exit_status = execute_on_server( cheapest_host , action[0].split("remote-")[1])
 				#* ELSE, EXECUTE ON LOCAL SERVER
 				else:
 					print(f"{YEL} --- LOCAL EXECUTION --- {RST}")
-					execute_on_server( ('localhost' , DEFAULT_PORT) , action[0])
+					exit_status = execute_on_server( ('localhost' , DEFAULT_PORT) , action[0])
 				
-				sys.exit(0)
+				sys.exit(exit_status)
 			# PARENT PROCESS
 			else:
 				print(f"{BOLD}appending pid={pid}{RST}")
@@ -433,9 +439,10 @@ def main():
 			pid, exit_code = os.waitpid(-1, 0)
 			if pid != 0:
 				# print(pid, exit_code//256)
-				processes.remove(pid)
-				if (exit_code >> 8) != 0:
-					break
+				if pid in processes:
+					processes.remove(pid)
+					if (exit_code >> 8) != 0:
+						error_in_actionset = True
 
 	print(f"{YEL}----------------------------------{RST}")
 	print(f"{YEL}  EXECUTION TIME = {(time.time() - start_time):.2f}s{RST}")
