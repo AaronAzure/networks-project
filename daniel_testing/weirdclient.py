@@ -228,7 +228,7 @@ def execute_on_server(server_port_tuple, argument, requirements = None):
 			argument += requirement
 			argument += ' '
 	
-	print("Going to send this to server:", argument)
+	print(f"Going to send this to {server_port_tuple}: {argument}")
 	
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	sd.connect( server_port_tuple )
@@ -415,7 +415,7 @@ def main():
 
 					# EXECUTE ON CHEAPEST REMOTE HOST
 					print(f"{YEL} --- REMOTE EXECUTION --- {RST}")
-					print(f"executing order on {cheapest_host}")
+					# print(f"executing order on {cheapest_host}")
 					execute_on_server( cheapest_host , action[0].split("remote-")[1])
 				#* ELSE, EXECUTE ON LOCAL SERVER
 				else:

@@ -111,43 +111,52 @@ def main():
 					continue
 
 				# DECODE RECEIVED DATA
-				
-				data = data.split(' Requirements:')
-				arguments = data[0].split()
-				requirements = []
-				
-				if len(data) == 2:
-					requirements = data[1].split()
+				pid = os.fork()
+				if pid == 0:
+					data = data.split(' Requirements:')
+					arguments = data[0].split()
+					requirements = []
+					
+					if len(data) == 2:
+						requirements = data[1].split()
 
-				if VERBOSE:
-					print('arguments:', arguments, '\nrequirements:', requirements)
-				
-				# Find the file in the server's working directory.
-				count = 0
-				for argument in arguments:
-					if argument in requirements:
-						print('trying to find path of ', argument)
-						arguments[count] = find_file(argument)
-					count += 1
+					if VERBOSE:
+						print('arguments:', arguments, '\nrequirements:', requirements)
+					
+					# Find the file in the server's working directory.
+					count = 0
+					for argument in arguments:
+						if argument in requirements:
+							print('trying to find path of ', argument)
+							arguments[count] = find_file(argument)
+						count += 1
+
+					# INFORM CLIENT THAT IT HAS RECEIVED THE DATA
+					client.send(bytes(f"Server received { data }", "utf-8"))
+					
+					# EXECUTES COMMAND
+					# execution = subprocess.run(arguments, capture_output = True)
+					print(f"executing cmd='{' '.join(arguments)}'")
+					execution = subprocess.Popen(' '.join(arguments), shell=True, 
+						stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+					
+					out, err = execution.communicate()
+					
+					return_code = '\n\tExit status: ' + str(execution.returncode)
+					
+					if out != None:
+						return_code += '\n\tOutput:\n' + out.decode("utf-8")
 						
-				# INFORM CLIENT THAT IT HAS RECEIVED THE DATA
-				client.send(bytes(f"Server received { data }", "utf-8"))
-				
-				# EXECUTES COMMAND
-				execution = subprocess.run(arguments, capture_output = True)
-				return_code = '\n\tExit status: ' + str(execution.returncode)
-				
-				if not execution.stdout.decode() == '':
-					return_code += '\n\tOutput:\n' + execution.stdout.decode()
+					elif err != None:
+						return_code += '\n\tError:\n' + err.decode("utf-8")
+						
+					print("return value = " + str(return_code))
 					
-				elif not execution.stderr.decode() == '':
-					return_code += '\n\tError:\n' + execution.stderr.decode()
-					
-				print("return value = " + str(return_code))
-				
-				# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
-				client.send(bytes(str(return_code), "utf-8"))
-				data = None
+					# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
+					client.send(bytes(str(return_code), "utf-8"))
+					sys.exit(0)
+				else:
+					break
 			# FINISHED RECEIVING DATA FROM CLIENT
 			else:
 				break
