@@ -2,6 +2,7 @@ import socket
 import sys, getopt
 import os, subprocess
 import random
+import tempfile, shutil
 
 import time #! DELETE
 
@@ -28,18 +29,6 @@ def cost_for_execution():
 	and will then (next) ask that server to execute the command. 
 	'''
 	return random.randint(1, 100)
-
-
-def find_file(filename):
-	'''
-	Function to find a file path in the working directory.
-	''' 
-	for root, dirs, files in os.walk(os.getcwd()):
-		if filename in files:
-			print(os.path.join(root, filename))
-			return os.path.join(root, filename)
-	return filename
-
 
 def read_option_flags():
 	global HOST
@@ -112,11 +101,13 @@ def main():
 					continue
 
 				# DECODE RECEIVED DATA
-				
 				data = data.split(' Requirements:')
-				arguments = data[0].split()
-				requirements = []
-				
+				arguments = data[0].split()		# STORES ARGUMENTS AS A LIST.
+				requirements = []			# STORES INPUT FILE(S) AS A LIST.
+				server_dir = os.getcwd()		# SERVER DIRECTORY
+				input_dir = tempfile.mkdtemp()		# TEMPORARY DIRECTORY FOR INPUT FILE(S)
+				output_dir = tempfile.mkdtemp()		# TEMPORARY DIRECTORY FOUR OUTPUT FILE(S)
+				os.chdir(output_dir)			# CHANGE WORKING DIRECTORY TO output_dir.
 				
 				if VERBOSE:
 					print('arguments:', arguments, '\nrequirements:', requirements)
@@ -126,29 +117,48 @@ def main():
 				
 				# RECEIVE AND INFORM CLIENT IT HAS RECEIVED NECESSARY FILES
 				if len(data) == 2:
+					
 					requirements = data[1].split()
+					
 					print(requirements)	# DEBUG: PRINTS THE REQUIRED FILE AND ITS SIZE
 								# SEPARATED BY '='
+					
+					# USING GCC TO SPECIFICALLY COMPILE THE OUTPUT FILE IN THE TEMPORARY DIRECTORY.
+					#arguments[0] = 'gcc'
+					#arguments.append('&)
+					#arguments.append(mv)
+					
+					#shutil.rmtree(temporary_directory)
 					for requirement in requirements:
 						rfile = requirement.split('=')
 						
-						# BINARY FILE
+						count = 0
+						for argument in arguments:
+							print('finding', argument)
+							print ('current file is', input_dir + '/' + rfile[0])
+							if argument == rfile[0]:
+								arguments[count] = input_dir + '/' + rfile[0]
+								print ('new argument location:', argument)
+							count += 1
+							
+						# READ BINARY FILE
 						if '.o' in rfile[0]:
-							file = open(rfile[0], "wb")
+							file = open(input_dir + '/' + rfile[0], "wb")
 							data = client.recv(int(rfile[1]))
 						
-						# ASCII TEXT FILE (I THINK)
+						# READ ASCII TEXT FILE (I THINK)
 						else:
-							file = open(rfile[0], "w")
+							file = open(input_dir + '/' + rfile[0], "w")
 							data = client.recv(int(rfile[1])).decode("utf-8")
 							
 						file.write(data)
 						file.close()
 						
 						# INFORMING THE CLIENT THAT THE FILE HAS BEEN RECEIVED
-						client.send(bytes(f"{requirement} data received\n", "utf-8"))
+						client.send(bytes(f"{rfile[0]} file of size {rfile[1]} received\n", "utf-8"))
 				
 				# EXECUTES COMMAND
+				print(arguments)
 				execution = subprocess.run(arguments, capture_output = True)
 				return_code = '\n\tExit status: ' + str(execution.returncode)
 				
@@ -163,13 +173,22 @@ def main():
 				# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
 				client.send(bytes(str(return_code), "utf-8"))
 				
-				# IF FILES WERE SENT TO THE SERVER: DELETE THEM.
-				# NOTE: DOESN'T GET RID OF ANY NEW FILE THAT GETS GENERATED IN THE SERVER DIRECTORY.
+				# INFORM CLIENT OF ANY OUTPUT FILES.
 				if not requirements == []:
-					for requirement in requirements:
-						filename = requirement.split('=')[0]
-						os.remove(filename)
-					
+					 files = os.listdir(output_dir)	
+					 filesize = os.path.getsize(files[0])
+					 message = files[0] + '=' + str(filesize)
+					 client.send(bytes(message, "utf-8"))
+					 
+					 file = open(files[0], 'rb')
+					 reading_file = file.read()
+					 client.send(reading_file)
+					 file.close()
+				
+				os.chdir(server_dir)
+				shutil.rmtree(input_dir)
+				shutil.rmtree(output_dir)
+				
 				data = None
 			# FINISHED RECEIVING DATA FROM CLIENT
 			else:
