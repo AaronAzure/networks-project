@@ -1,7 +1,7 @@
-
+# A typical Rakefile
 
 PORT  = 12345
-HOSTS = 127.0.0.1:22222 localhost:33333
+HOSTS = localhost:12345
 
 actionset1: #potato
 	# echo starting actionset1
@@ -15,9 +15,9 @@ actionset1: #potato
 	remote-pwd
 	remote-pwd
 	remote-pwd
-	pwd
-	pwd
-	pwd
+	# pwd
+	# pwd
+	# pwd
 	# remote-ls -ld -- */
 	# remote-echo hi
 	# remote-sleep 5
