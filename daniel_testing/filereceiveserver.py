@@ -176,7 +176,7 @@ def main():
 				break
 		
 		client.close()
-		print(RED + ' Client disconnected from sd=' + str(SOCKET_NUM) + '\n' + RST)
+		print(BOLD + ' Client disconnected from sd=' + str(SOCKET_NUM) + '\n' + RST)
 		SOCKET_NUM -= 1
 		print(MAG + "listening on port " + str(PORT_NUM) + ", sd " + str(SOCKET_NUM) + RST)
 		print("----------------------------------------")

@@ -133,87 +133,6 @@ def file_path(filename):
 			return os.path.join(r, filename)
 	return None
 	
-
-def external_program_results(arguments, execution_failure):
-	'''
-	Print results of the external program. Also returns action execution failure if that occurs.
-	'''
-	output = subprocess.run(arguments, capture_output = True)
-	if VERBOSE:
-		print(output)
-	
-	# Printing the output of the execution in a readable format.
-	print('Arguments:', ' '.join(output.args))		# Input arguments.
-	print('Exit status:', output.returncode)		# Success/failure report.
-				
-	if not output.stdout.decode() == '':			# Prints output if they exist.
-		print('Output:', output.stdout.decode())
-		
-	if not output.stderr.decode() == '':			# Prints error and sets failure flag.
-		print('Error:', output.stderr.decode())
-		execution_failure = True
-	
-	print('')						# Just for formatting.
-	
-	return execution_failure
-
-
-# def execute_on_server(server_port_tuple, argument, requirements = None):
-	# 	'''
-	# 	Function that performes actions that require the server. 
-	# 	Receives the action and a list of the necessary files.
-	# 	'''
-	# 	# If there are file requirements, add them as a string to arguments, seperated by ' Requirements: '.
-	# 	if requirements != None:
-	# 		argument += ' Requirements: '
-	# 		for requirement in requirements:
-	# 			argument += requirement
-	# 			argument += ' '
-		
-	# 	print("Going to send this to server:", argument)
-
-	# 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	# 	sd.connect( server_port_tuple )
-			
-	# 	sd.setblocking(False)
-		
-	# 	inputs 	= [sd]
-	# 	outputs = [sd]
-		
-	# 	while inputs:
-	# 		readable, writable, exceptional = select.select(inputs, outputs, inputs)
-
-	# 		# WRITE TO SERVER, WHEN CONNECTED
-	# 		for sd in writable:
-	# 			sd.send(bytes(argument, "utf-8"))
-	# 			outputs.remove(sd)
-			
-	# 		# READ FROM SERVER, WHILST CONNECTED
-	# 		for sd in readable:
-
-	# 			# SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
-	# 			reply = sd.recv(8192)
-	# 			if reply:
-	# 				reply = reply.decode("utf-8")
-	# 				print(f"{CYN} {reply} {RST}")
-				
-	# 			# SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
-	# 			status = sd.recv(8192)
-	# 			if status:
-	# 				status = status.decode("utf-8")
-	# 				print(f"{CYN} {status} {RST}")
-
-	# 			sd.close()
-	# 			inputs.remove(sd)
-	# 			break
-			
-	# 		# READ FROM SERVER, WHILST CONNECTED
-	# 		for sd in exceptional:
-	# 			outputs.remove(sd)
-	# 			inputs.remove(sd)
-	# 			break
-
-	# 	return
 	
 
 def execute_on_server(server_port_tuple, argument, requirements = None):
@@ -228,43 +147,45 @@ def execute_on_server(server_port_tuple, argument, requirements = None):
 			argument += requirement
 			argument += ' '
 	
-	print(f"Going to send this to {server_port_tuple}: {argument}")
+	# print(f"Going to send this to {server_port_tuple}: {argument}")
 	
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	sd.connect( server_port_tuple )
 	sd.send(bytes(argument, "utf-8"))
 		
 	# SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
-	reply = sd.recv(2048)
-	if reply:
-		reply = reply.decode("utf-8")
-		print(f"{CYN}reply = {reply} {RST}")
+	# reply = sd.recv(2048)
+	# if reply:
+	# 	reply = reply.decode("utf-8")
+	# 	print(f"{CYN}reply = {reply} {RST}")
+	
+	# SERVER INFORMS CLIENT THE OUTPUT OF EXECUTING ACTION
+	output = sd.recv(2048)
+	if output != None:
+		output = output.decode("utf-8")
+		print(f"output = |{output}|")
 	
 	# SERVER INFORMS CLIENT THE STATUS OF EXECUTING ACTION
 	status = sd.recv(2048)
 	if status:
 		status = status.decode("utf-8")
-		print(f"{CYN} status = {status} {RST}")
-	
-	# SERVER INFORMS CLIENT THE OUTPUT OF EXECUTING ACTION
-	output = sd.recv(2048)
-	if output:
-		output = output.decode("utf-8")
-		print(f"{CYN} output = {output} {RST}")
+		print(f"{CYN}status = {status} {RST}")
 	
 	sd.close()
-	sys.exit(status)
+	return status
 	
 
 # def get_all_cost_nonblocking(server_port_tuple, argument, requirements = None):
 def get_cheapest_host(hosts):
 	'''
-	Function that performes actions that require the server. 
-	Receives the action and a list of the necessary files.
+	Simultaneously get the cost of each remote host, 
+	and report back the remote host with the lowest cost
 	'''
 	
 	inputs = []
 	outputs = []
+
+    # INITIALISE ALL REMOTE HOST(S)
 	for i in range(len(hosts)):
 		sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		sd.connect( hosts[i] )
@@ -276,8 +197,8 @@ def get_cheapest_host(hosts):
 	cheapest_host = hosts[0]
 	lowest_cost = float('inf')
 
-	# if VERBOSE:
-	print(f"\n{GRN} non-blocking: {RST}")
+	if VERBOSE:
+		print(f"\n{GRN} non-blocking: {RST}")
 	
 	while inputs:
 		readable, writable, exceptional = select.select(inputs, outputs, inputs)
@@ -290,7 +211,6 @@ def get_cheapest_host(hosts):
 		
 		# READ FROM SERVER, WHILST CONNECTED
 		for sd in readable:
-			print(f"{CYN} -- got reply -- {RST}")
 			reply = sd.recv(2048)
 			reply_cost = int( reply.decode("utf-8") )
 
@@ -309,8 +229,8 @@ def get_cheapest_host(hosts):
 			inputs.remove(sd)
 			break
 			
-	# if VERBOSE:
-	print(f"{GRN} done non-blocking actions {RST}")
+	if VERBOSE:
+		print(f"{GRN} done non-blocking actions {RST}")
 	
 	# RETURN REMOTE ADDRESS CHEAPEST HOST TO RUN COMMAND/ACTION
 	return cheapest_host
@@ -347,25 +267,6 @@ def read_option_flags():
 		sys.exit(2)
 
 
-def get_cost_from_server(server_port_tuple):
-	'''
-	Return the cost of executing a command on the specified server.
-	'''
-	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	
-	print(server_port_tuple)
-	sd.connect( server_port_tuple )
-	sd.send(bytes("cost?", "utf-8"))
-
-	reply = sd.recv(2048)
-	sd.close()
-	
-	if reply:
-		reply_cost = reply.decode("utf-8")
-		return int(reply_cost)
-	
-	return -1
-
 ####################################################################################################
 
 
@@ -400,8 +301,8 @@ def main():
 	if VERBOSE:
 		print(f"hosts = {hosts}")
 		print(f"actionset_names = {actionset_names}")
+		start_time = time.time()
 	
-	start_time = time.time()
 
 	# # PERFORM ACTION ON SERVER ( HOSTS )
 	error_in_actionset = False
@@ -428,31 +329,26 @@ def main():
 					print(f"{YEL} --- LOCAL EXECUTION --- {RST}")
 					exit_status = execute_on_server( ('localhost' , DEFAULT_PORT) , action[0])
 				
-				sys.exit(exit_status)
+				if exit_status != 0:
+					sys.exit(1)
+				sys.exit(0)
 			# PARENT PROCESS
 			else:
-				print(f"{BOLD}appending pid={pid}{RST}")
 				processes.append(pid)
 
 		# WAIT TILL ALL ACTIONS HAVE BEEN EXECUTED
 		while processes:
 			pid, exit_code = os.waitpid(-1, 0)
 			if pid != 0:
-				# print(pid, exit_code//256)
 				if pid in processes:
 					processes.remove(pid)
 					if (exit_code >> 8) != 0:
 						error_in_actionset = True
 
-	print(f"{YEL}----------------------------------{RST}")
-	print(f"{YEL}  EXECUTION TIME = {(time.time() - start_time):.2f}s{RST}")
-	print(f"{YEL}----------------------------------{RST}")
-		#! WAIT UNTIL AFTER ALL CHILD PROCESSES HAVE EXECUTED, 
-		#! CHECK IF ANY ERROR, OTHERWISE CONTINUE TO NEXT ACTIONSET
-	# 		# * IF ACTION HAS REQUIREMENT FILE(S)
-	# 		# if len(action) > 1:
-	# 		# GET COST FOR ACTION FROM EACH HOST (SERVER)
-	# 		# if 
+	if VERBOSE:
+		print(f"{YEL}----------------------------------{RST}")
+		print(f"{YEL}  EXECUTION TIME = {(time.time() - start_time):.2f}s{RST}")
+		print(f"{YEL}----------------------------------{RST}")
 		
 
 
