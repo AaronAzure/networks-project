@@ -1,16 +1,26 @@
-
+# A typical Rakefile
 
 PORT  = 12345
-HOSTS = 127.0.0.1:22222 localhost:33333
+HOSTS = localhost:12345
 
-actionset1: #potato
+actionset1:
 	echo starting actionset1
-	remote-cal
-	# remote-lakjsdnk
-	# remote-cal
-	# 	requires program.c program.h allfunctions.h # potato
-	# remote-cc program.c # potato
+	cal
+	cc -c program.c
+		requires program.c program.h allfunctions.h
+	cc -c square.c
+		requires square.c allfunctions.h
+	cc -c cube.c
+		requires cube.c allfunctions.h
+	
 
-actionset2: #potato
+actionset2:
 	echo starting actionset2
-	remote-cal
+	cc -o program program.o square.o cube.o
+		requires program.o square.o cube.o
+
+actionset3:
+	echo starting actionset3
+	remote-echo dabbing
+	remote-cc -c program.c
+		requires program.c program.h allfunctions.h
