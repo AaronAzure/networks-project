@@ -202,28 +202,28 @@ def file_path(filename):
 	return None
 	
 
-def external_program_results(arguments, execution_failure):
-	'''
-	Print results of the external program. Also returns action execution failure if that occurs.
-	'''
-	output = subprocess.run(arguments, capture_output = True)
-	if VERBOSE:
-		print(output)
-	
-	# Printing the output of the execution in a readable format.
-	print('Arguments:', ' '.join(output.args))		# Input arguments.
-	print('Exit status:', output.returncode)		# Success/failure report.
-				
-	if not output.stdout.decode() == '':			# Prints output if they exist.
-		print('Output:', output.stdout.decode())
-		
-	if not output.stderr.decode() == '':			# Prints error and sets failure flag.
-		print('Error:', output.stderr.decode())
-		execution_failure = True
-	
-	print('')						# Just for formatting.
-	
-	return execution_failure
+#def external_program_results(arguments, execution_failure):
+#	'''
+#	Print results of the external program. Also returns action execution failure if that occurs.
+#	'''
+#	output = subprocess.run(arguments, capture_output = True)
+#	if VERBOSE:
+#		print(output)
+#	
+#	# Printing the output of the execution in a readable format.
+#	print('Arguments:', ' '.join(output.args))		# Input arguments.
+#	print('Exit status:', output.returncode)		# Success/failure report.
+#				
+#	if not output.stdout.decode() == '':			# Prints output if they exist.
+#		print('Output:', output.stdout.decode())
+#		
+#	if not output.stderr.decode() == '':			# Prints error and sets failure flag.
+#		print('Error:', output.stderr.decode())
+#		execution_failure = True
+#	
+#	print('')						# Just for formatting.
+#	
+#	return execution_failure
 	
 
 def execute_on_server(server_port_tuple, argument, requirements = None):
@@ -281,8 +281,6 @@ def execute_on_server(server_port_tuple, argument, requirements = None):
 			print('Should be receiving a file confirmation. Nothing else.')
 			print(CYN)
 			print(f"{CYN} {file_confirmation} {RST}")
-			#if requirement == requirements[len(requirements) - 1]:
-			#	break
 			
 	# SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
 	print('Should be receiving an exit output.')
@@ -293,6 +291,18 @@ def execute_on_server(server_port_tuple, argument, requirements = None):
 		print(CYN) 
 		print(f"{CYN} {status} {RST}")
 	
+	if not requirements == None:
+		output_message = sd.recv(1024).decode("utf-8")
+		if output_message:
+			output_message = output_message.split('=')
+			print(CYN)
+			print(f"{CYN} {'Will receive file'} {output_message[0]} {'of size'} {output_message[1]} {'from the server.'}")
+		
+		output_file = sd.recv(int(output_message[1]))
+		file = open(output_message[0], 'wb')
+		file.write(output_file)
+		file.close()
+		
 	sd.close()
 	
 	#print('Arguments:', ' '.join(status.args))
@@ -401,7 +411,7 @@ def main():
 				if len(action) == 1:
 					execute_on_server( hosts[cheapest_host] , action[0].split("remote-")[1])
 				else:
-					execute_on_server( hosts[cheapest_host] , action[0].split("remote-")[1])
+					execute_on_server( hosts[cheapest_host] , action[0].split("remote-")[1], action[1].strip('requires').split())
 
 				
 			# * ELSE, EXECUTE ON LOCAL SERVER
