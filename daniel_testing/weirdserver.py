@@ -138,23 +138,6 @@ def main():
 					try:
 						execution = subprocess.run(arguments, capture_output=True)	# RUN sleep 5, but not errors
 				
-					except Exception as err:
-    					# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
-						reply = '1' + '\n'
-
-						# INFORM CLIENT THE RETURN OUTPUT OF EXECUTING THE COMMAND
-						reply += err
-						# elif execution.returncode != 0:
-						# 	reply += execution.stderr.decode("utf-8")
-
-						time.sleep( os.getpid() % 10 * 0.1) # AVOID CRASHES
-						print(f"--> out={reply}")
-						client.send(bytes(reply, "utf-8"))
-						
-						client.close()
-						sys.exit(1)
-
-					else:
 						# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
 						reply = str(execution.returncode) + '\n'
 
@@ -170,6 +153,21 @@ def main():
 					
 						client.close()
 						sys.exit(0)
+					except Exception as err:
+    					# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
+						reply = '1' + '\n'
+
+						# INFORM CLIENT THE RETURN OUTPUT OF EXECUTING THE COMMAND
+						reply += err
+						# elif execution.returncode != 0:
+						# 	reply += execution.stderr.decode("utf-8")
+
+						time.sleep( os.getpid() % 10 * 0.1) # AVOID CRASHES
+						print(f"--> out={reply}")
+						client.send(bytes(reply, "utf-8"))
+						
+						client.close()
+						sys.exit(1)
 				# PARENT PROCESS LISTENS FOR OTHER CLIENT REQUEST(S)
 				else:
 					data = None
