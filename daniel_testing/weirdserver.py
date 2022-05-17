@@ -135,23 +135,41 @@ def main():
 						count += 1
 					
 					# EXECUTES COMMAND
-					execution = subprocess.run(arguments, capture_output=True, shell=True)
+					try:
+						execution = subprocess.run(arguments, capture_output=True)	# RUN sleep 5, but not errors
 				
-					# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
-					reply = str(execution.returncode) + '\n'
+					except Exception as err:
+    					# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
+						reply = '1' + '\n'
 
-					# INFORM CLIENT THE RETURN OUTPUT OF EXECUTING THE COMMAND
-					if execution.returncode == 0:
-						reply += execution.stdout.decode("utf-8")
-					elif execution.returncode != 0:
-						reply += execution.stderr.decode("utf-8")
+						# INFORM CLIENT THE RETURN OUTPUT OF EXECUTING THE COMMAND
+						reply += err
+						# elif execution.returncode != 0:
+						# 	reply += execution.stderr.decode("utf-8")
 
-					time.sleep( os.getpid() % 10 * 0.1) # AVOID CRASHES
-					print(f"--> out={reply}")
-					client.send(bytes(reply, "utf-8"))
+						time.sleep( os.getpid() % 10 * 0.1) # AVOID CRASHES
+						print(f"--> out={reply}")
+						client.send(bytes(reply, "utf-8"))
+						
+						client.close()
+						sys.exit(1)
+
+					else:
+						# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
+						reply = str(execution.returncode) + '\n'
+
+						# INFORM CLIENT THE RETURN OUTPUT OF EXECUTING THE COMMAND
+						if execution.returncode == 0:
+							reply += execution.stdout.decode("utf-8")
+						# elif execution.returncode != 0:
+						# 	reply += execution.stderr.decode("utf-8")
+
+						time.sleep( os.getpid() % 10 * 0.1) # AVOID CRASHES
+						print(f"--> out={reply}")
+						client.send(bytes(reply, "utf-8"))
 					
-					client.close()
-					sys.exit(0)
+						client.close()
+						sys.exit(0)
 				# PARENT PROCESS LISTENS FOR OTHER CLIENT REQUEST(S)
 				else:
 					data = None
