@@ -147,32 +147,23 @@ def execute_on_server(server_port_tuple, argument, requirements = None):
 			argument += requirement
 			argument += ' '
 	
-	# print(f"Going to send this to {server_port_tuple}: {argument}")
-	
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	sd.connect( server_port_tuple )
 	sd.send(bytes(argument, "utf-8"))
+	
+	# CLIENT RECEIVES FROM SERVER, THE STATUS AND OUTPUT OF EXECUTING ACTION
+	response = sd.recv(2048)
+	if response != None:
+		response = response.decode("utf-8")
+		if VERBOSE:
+			print(f"stat = |{ response.splitlines()[0] }|")
 		
-	# SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
-	# reply = sd.recv(2048)
-	# if reply:
-	# 	reply = reply.decode("utf-8")
-	# 	print(f"{CYN}reply = {reply} {RST}")
-	
-	# SERVER INFORMS CLIENT THE OUTPUT OF EXECUTING ACTION
-	output = sd.recv(2048)
-	if output != None:
-		output = output.decode("utf-8")
-		print(f"output = |{output}|")
-	
-	# SERVER INFORMS CLIENT THE STATUS OF EXECUTING ACTION
-	status = sd.recv(2048)
-	if status:
-		status = status.decode("utf-8")
-		print(f"{CYN}status = {status} {RST}")
+		# REPORT OUTPUT TO SCREEN
+		output = response.splitlines(True)[1:]
+		print(''.join(output))
 	
 	sd.close()
-	return status
+	return int(response.splitlines()[0])
 	
 
 # def get_all_cost_nonblocking(server_port_tuple, argument, requirements = None):
@@ -329,9 +320,7 @@ def main():
 					print(f"{YEL} --- LOCAL EXECUTION --- {RST}")
 					exit_status = execute_on_server( ('localhost' , DEFAULT_PORT) , action[0])
 				
-				if exit_status != 0:
-					sys.exit(1)
-				sys.exit(0)
+				sys.exit(exit_status)
 			# PARENT PROCESS
 			else:
 				processes.append(pid)

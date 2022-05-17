@@ -133,49 +133,22 @@ def main():
 							arguments[count] = find_file(argument)
 						count += 1
 
-					# INFORM CLIENT THAT IT HAS RECEIVED THE DATA
-					# client.send(bytes(f"Server received { data }", "utf-8"))
+					#// INFORM CLIENT THAT IT HAS RECEIVED THE DATA
+					#// client.send(bytes(f"Server received { data }", "utf-8"))
 					
 					# EXECUTES COMMAND
-					# execution = subprocess.run(arguments, capture_output = True)
+					execution = subprocess.run(arguments, capture_output = True)
 				
-					# output = ''
-					# if execution.stdout.decode() != '':
-					# 	output = execution.stdout.decode()
-
-					# print(f"--> out={output}")
-					# client.send(bytes(output, "utf-8"))
-					# time.sleep(0.1)
-					
-					# status = str(execution.returncode)
-					# print(f"--> stat={status}")
-					# client.send(bytes(str(status), "utf-8"))
-
-					# EXECUTES COMMAND
-					print(f"executing cmd='{' '.join(arguments)}'")
-					execution = subprocess.Popen(' '.join(arguments), shell=True, 
-						stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-					
-					out, err = execution.communicate()
-					
-					
-					# INFORM CLIENT THE RETURN OUTPUT OF EXECUTING THE COMMAND
-					return_output = ''
-					if out != None:
-						return_output = out.decode()
-					if err != None:
-						return_output = err.decode()
-						
-					if VERBOSE:
-						print(f"--> {return_output}")
-					
-					client.send(bytes(str(return_output), "utf-8"))
-					
-					out, err = execution.communicate()
 					# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
-					status = str(execution.returncode)
-					print(f"--> stat={status}")
-					client.send(bytes(str(status), "utf-8"))
+					reply = str(execution.returncode) + '\n'
+
+					# INFORM CLIENT THE RETURN OUTPUT OF EXECUTING THE COMMAND
+					if execution.stdout.decode() != '':
+						reply += execution.stdout.decode()
+
+					time.sleep( os.getpid() % 10 * 0.1)
+					print(f"--> out={reply}")
+					client.send(bytes(reply, "utf-8"))
 					
 					client.close()
 					sys.exit(0)

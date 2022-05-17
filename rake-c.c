@@ -389,28 +389,28 @@ int write_file_to_server(int sd, char message[])
 
     if (write(sd, message, strlen(message)) < 0) 
         return EXIT_FAILURE;
-        
-    // CLIENT RECEIVES FROM SERVER, IF MESSAGE WAS RECEIVED
-    // char server_reply[2048];
-    // read(sd, server_reply , 2048);
-	// if (verbose)
-	// 	printf("%s <---- %s\n%s", CYN, server_reply, RESET);
 
-	// CLIENT RECEIVES FROM SERVER, THE OUTPUT OF EXECUTING ACTION
-	char output[2048];
-    read(sd, output , 2048);
-    
-    // CLIENT RECEIVES FROM SERVER, IF MESSAGE WAS RECEIVED
-    char action_status[2048];
-    read(sd, action_status , 2048);
-	int status = atoi(action_status);
-	// if (verbose)
-		printf("%s <--- %i\n%s", CYN, status, RESET);
+	// CLIENT RECEIVES FROM SERVER, THE STATUS AND OUTPUT OF EXECUTING ACTION
+	char response[2048];
+    read(sd, response , 2048);
+	
+	if (verbose)
+		printf("%s|%s|%s\n", MAG, response, RESET);
 
-	// if (verbose)
-	printf("--- %i ------------\n", getpid());
-	printf("%s <-- %s\n%s", CYN, output, RESET);
-	printf("--- %i ------------\n", getpid());
+	int first_line_len = char_at(response, '\n');
+	char *status_str = (char *) malloc(first_line_len);
+	strncpy(status_str, response, first_line_len);
+	int status = atoi(status_str);
+		
+	if (verbose)
+		printf("stat = |%i|\n", status);
+
+	int output_len = strlen(response) - first_line_len;
+	char *output = (char *) malloc( output_len );
+	strncpy(output, response + first_line_len, output_len);
+	
+	// REPORT OUTPUT TO SCREEN
+	printf("%s\n", output); 
 
 	shutdown(sd, SHUT_RDWR);
     close(sd);
@@ -455,43 +455,15 @@ int establish_socket(char *host, int port)
 	return sd;
 }
 
-
 /**
- * @brief Return the cost of executing a command on the specified server.
+ * @brief Return the cost of executing a command on all remote server.
  * 
- * @param server 
- * @param port 
- * @return int 
- */
-int get_cost_from_server(char *host, int port)
-{
-	int sd = establish_socket(host, port);
-    
-	if (write(sd, "cost?", strlen("cost?")) < 0) 
-		return -1;
-
-	// SERVER INFORMS CLIENT IF MESSAGE WAS RECEIVED
-    char server_reply[2048];
-    read(sd, server_reply , 2048);
-
-    shutdown(sd, SHUT_RDWR);
-    close(sd);
-
-	return atoi(server_reply);
-}
-
-/**
- * @brief Get the cost from server object
- * 
- * @param host 
- * @param port 
- * @return int 
+ * @return int the index of the cheapest host (remote server).
  */
 int get_cheapest_host()
 {
     int sds[rackfile.nHosts];
     fd_set read_fd_set;
-    // fd_set read_fd_set, current_fd_set;
 	FD_ZERO(&read_fd_set);
 
     // INITIALISE ALL REMOTE SOCKETS
@@ -562,7 +534,6 @@ int get_cheapest_host()
 		}
 	}
 
-	printf("%s  FINISHED GETTING COSTS\n%s", CYN, RESET);
 	return cheapest_host;
 }
 
@@ -615,9 +586,6 @@ int main(int argc, char *argv[])
 	bool error_in_actionset = false;
 	for (int i=0 ; i<rackfile.nActionSets && !error_in_actionset; i++)
 	{
-		// get_cheapest_host();
-		// break;
-
 		for (int j=0 ; j<rackfile.actionSets[i].nActions && !error_in_actionset; j++)
 		{
 			int cheapest_host;
@@ -639,7 +607,7 @@ int main(int argc, char *argv[])
 						printf("%s --- REMOTE EXECUTION --- \n%s", YEL, RESET);
 						int sd = establish_socket(rackfile.hosts[cheapest_host].host, rackfile.hosts[cheapest_host].port);
 						int return_val = write_file_to_server(sd, rackfile.actionSets[i].actions[j].action);
-						printf("%sret - %i\n%s", YEL, return_val, RESET);
+						// printf("%sret - %i\n%s", YEL, return_val, RESET);
 						exit(return_val);
 					}
 					else
@@ -647,7 +615,7 @@ int main(int argc, char *argv[])
 						printf("%s --- LOCAL EXECUTION --- \n%s", YEL, RESET);
 						int sd = establish_socket("localhost", default_port);
 						int return_val = write_file_to_server(sd, rackfile.actionSets[i].actions[j].action);
-						printf("%sret - %i\n%s", YEL, return_val, RESET);
+						// printf("%sret - %i\n%s", YEL, return_val, RESET);
 						exit(return_val);
 					}
 					break;
@@ -661,7 +629,6 @@ int main(int argc, char *argv[])
 		int status;
 		while ((child = wait(&status)) > 0)
 		{
-			printf("%serror detected - %i\n%s", RED, status, RESET);
 			if (WEXITSTATUS(status) != 0)
 			{
 				if (verbose)
@@ -671,50 +638,6 @@ int main(int argc, char *argv[])
 			}
 		}
 	}
-
-
-	// for (int i=0 ; i<rackfile.nActionSets && !error_in_actionset; i++)
-    // {
-    //     for (int j=0 ; j<rackfile.actionSets[i].nActions && !error_in_actionset; j++)
-    //     {
-	// 		// * IF ACTION IS REMOTE, THEN CHECK COST FROM EACH SERVER
-	// 		if (rackfile.actionSets[i].actions[j].isLocal)
-	// 		{
-	// 			int cheapest_host = 0;
-	// 			int lowest_cost = 1000;
-
-	// 			for (int h=0 ; h<rackfile.nHosts ; h++)
-	// 			{
-	// 				int cost = get_cost_from_server(rackfile.hosts[h].host, rackfile.hosts[h].port);
-	// 				if (verbose)
-	// 					printf("(%s, %i) = %i\n",rackfile.hosts[h].host, rackfile.hosts[h].port, cost);
-					
-	// 				// REMEMBER THE REMOTE HOST RETURNING THE LOWEST COST TO RUN THE COMMAND
-	// 				if (cost < lowest_cost)
-	// 				{
-	// 					lowest_cost = cost;
-	// 					cheapest_host = h;
-	// 				}
-	// 			}
-
-	// 			// EXECUTE ON CHEAPEST REMOTE HOST
-	// 			printf("%s --- REMOTE EXECUTION --- \n%s", YEL, RESET);
-	// 			printf("executing order on %s (%i)\n", rackfile.hosts[cheapest_host].host, cheapest_host);
-	// 			int sd = establish_socket(rackfile.hosts[cheapest_host].host, rackfile.hosts[cheapest_host].port);
-	// 			if (write_file_to_server(sd, rackfile.actionSets[i].actions[j].action) != 0)
-	// 				error_in_actionset = true;
-	// 		}
-	// 		// * ELSE, EXECUTE ON LOCAL SERVER
-	// 		else
-	// 		{
-	// 			printf("%s --- LOCAL EXECUTION --- \n%s", YEL, RESET);
-	// 			int sd = establish_socket("localhost", default_port);
-	// 			if (write_file_to_server(sd, rackfile.actionSets[i].actions[j].action) != 0)
-	// 				error_in_actionset = true;
-	// 		}
-	// 	}
-	// }
-	
 
     printf("\n");
     return EXIT_SUCCESS;
