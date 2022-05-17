@@ -4,13 +4,35 @@ PORT  = 12345
 HOSTS = 127.0.0.1:22222 localhost:33333
 
 actionset1: #potato
-	echo starting actionset1
-	remote-cal
+	# echo starting actionset1
+	# remote-cal
+	remote-pwd
+	remote-pwd
+	remote-pwd
+	remote-pwd
+	remote-pwd
+	remote-pwd
+	remote-pwd
+	remote-pwd
+	remote-pwd
+	pwd
+	pwd
+	pwd
+	# remote-ls -ld -- */
+	# remote-echo hi
+	# remote-sleep 5
+	# remote-sleep 5
+	# remote-sleep 5
+	# remote-sleep 5
 	# remote-lakjsdnk
+	# remote-cal
 	# remote-cal
 	# 	requires program.c program.h allfunctions.h # potato
 	# remote-cc program.c # potato
 
-actionset2: #potato
-	echo starting actionset2
-	remote-cal
+# actionset2: #potato
+# 	echo starting actionset2
+	# remote-pwd
+	# remote-pwd
+# 	remote-pwd
+# 	remote-pwd

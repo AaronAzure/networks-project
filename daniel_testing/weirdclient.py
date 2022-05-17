@@ -153,17 +153,22 @@ def execute_on_server(server_port_tuple, argument, requirements = None):
 	
 	# CLIENT RECEIVES FROM SERVER, THE STATUS AND OUTPUT OF EXECUTING ACTION
 	response = sd.recv(2048)
-	if response != None:
-		response = response.decode("utf-8")
-		if VERBOSE:
-			print(f"stat = |{ response.splitlines()[0] }|")
-		
-		# REPORT OUTPUT TO SCREEN
-		output = response.splitlines(True)[1:]
+	response = response.decode("utf-8")
+	status = int(response.splitlines()[0])
+	
+	if VERBOSE:
+		print(f"stat = |{ response.splitlines()[0] }|")
+	
+	# REPORT OUTPUT TO SCREEN
+	output = response.splitlines(True)[1:]
+	if status == 0:
+		print(''.join(output))
+	else:
+		print("error:")
 		print(''.join(output))
 	
 	sd.close()
-	return int(response.splitlines()[0])
+	return status
 	
 
 # def get_all_cost_nonblocking(server_port_tuple, argument, requirements = None):
@@ -300,7 +305,7 @@ def main():
 	for actionset in actionset_names:
 		processes = []
 		if error_in_actionset:
-			print(f"{RED}  ERROR IN AN ACTION{RST}")
+			print("error detected in actionset - halting subsequent actionsets")
 			break
 
 		for action in rake_dict[ actionset ]:

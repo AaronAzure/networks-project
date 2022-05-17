@@ -112,6 +112,7 @@ def main():
 					continue
 
 				# DECODE RECEIVED DATA
+				SOCKET_NUM += 1
 				pid = os.fork()
 				# CHILD PROCESS DEALS WITH CURRENT ACTION
 				if pid == 0:
@@ -132,21 +133,20 @@ def main():
 							print('trying to find path of ', argument)
 							arguments[count] = find_file(argument)
 						count += 1
-
-					#// INFORM CLIENT THAT IT HAS RECEIVED THE DATA
-					#// client.send(bytes(f"Server received { data }", "utf-8"))
 					
 					# EXECUTES COMMAND
-					execution = subprocess.run(arguments, capture_output = True)
+					execution = subprocess.run(arguments, capture_output=True, shell=True)
 				
 					# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
 					reply = str(execution.returncode) + '\n'
 
 					# INFORM CLIENT THE RETURN OUTPUT OF EXECUTING THE COMMAND
-					if execution.stdout.decode() != '':
-						reply += execution.stdout.decode()
+					if execution.returncode == 0:
+						reply += execution.stdout.decode("utf-8")
+					elif execution.returncode != 0:
+						reply += execution.stderr.decode("utf-8")
 
-					time.sleep( os.getpid() % 10 * 0.1)
+					time.sleep( os.getpid() % 10 * 0.1) # AVOID CRASHES
 					print(f"--> out={reply}")
 					client.send(bytes(reply, "utf-8"))
 					

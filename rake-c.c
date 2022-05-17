@@ -410,7 +410,10 @@ int write_file_to_server(int sd, char message[])
 	strncpy(output, response + first_line_len, output_len);
 	
 	// REPORT OUTPUT TO SCREEN
-	printf("%s\n", output); 
+	if (status == 0)
+		printf("%s\n", output); 
+	else
+		printf("error: %s\n", output); 
 
 	shutdown(sd, SHUT_RDWR);
     close(sd);
@@ -627,16 +630,13 @@ int main(int argc, char *argv[])
 
 		pid_t child;
 		int status;
+		// WAIT FOR ALL CHILD PROCESS TO EXIT
 		while ((child = wait(&status)) > 0)
-		{
 			if (WEXITSTATUS(status) != 0)
-			{
-				if (verbose)
-					printf("error detected\n");
 				error_in_actionset = true;
-				break;
-			}
-		}
+
+		if (error_in_actionset)
+			printf("error detected in actionset - halting subsequent actionsets\n");
 	}
 
     printf("\n");
