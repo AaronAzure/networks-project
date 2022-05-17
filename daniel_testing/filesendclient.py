@@ -23,6 +23,7 @@ PORT_NUM = 12345
 DEFAULT_PORT = 12345
 VERBOSE = False
 rakefile  = 'Rakefile'	# Will be used to store rakefile.
+protocol = ''
 #################################################################################
 
 def fread(filename):
@@ -199,32 +200,7 @@ def file_path(filename):
 	for r, d, f in os.walk(os.getcwd()):
 		if filename in f:
 			return os.path.join(r, filename)
-	return None
-	
-
-#def external_program_results(arguments, execution_failure):
-#	'''
-#	Print results of the external program. Also returns action execution failure if that occurs.
-#	'''
-#	output = subprocess.run(arguments, capture_output = True)
-#	if VERBOSE:
-#		print(output)
-#	
-#	# Printing the output of the execution in a readable format.
-#	print('Arguments:', ' '.join(output.args))		# Input arguments.
-#	print('Exit status:', output.returncode)		# Success/failure report.
-#				
-#	if not output.stdout.decode() == '':			# Prints output if they exist.
-#		print('Output:', output.stdout.decode())
-#		
-#	if not output.stderr.decode() == '':			# Prints error and sets failure flag.
-#		print('Error:', output.stderr.decode())
-#		execution_failure = True
-#	
-#	print('')						# Just for formatting.
-#	
-#	return execution_failure
-	
+	return None	
 
 def execute_on_server(server_port_tuple, argument, requirements = None):
 	'''
@@ -241,7 +217,8 @@ def execute_on_server(server_port_tuple, argument, requirements = None):
 			argument += requirement + '=' + str(os.path.getsize(file_path(requirement)))
 			argument += ' '
 
-	print("Going to send this to server:", argument)
+	protocol = '01000 | ' + str(len(argument)) + ' | ' + argument
+	print("Protocol sending server an argument (possibly with requirements):", protocol)
 	
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	sd.connect( server_port_tuple )
@@ -340,21 +317,28 @@ def read_option_flags():
 
 
 def get_cost_from_server(server_port_tuple):
+	'''
+	Function that asks server for the cost of executing an action.
+	Returns -1 if server not found, else return the cost.
+	'''
+	protocol = '10000 | 0 |'
+	print('Protocol asking server for cost of executing action', protocol)
+
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	
 	print(server_port_tuple)
 	sd.connect( server_port_tuple )
-	sd.send(bytes("cost?", "utf-8"))
+	sd.send(bytes(protocol, "utf-8"))
 
 	reply = sd.recv(1024)
 	
 	if reply:
 		reply_cost = reply.decode("utf-8")
+		reply_cost = reply_cost.split('|')[2]
 		return int(reply_cost)
 	return -1
 
 ####################################################################################################
-
 
 def main():
 	global HOST

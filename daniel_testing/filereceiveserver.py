@@ -11,6 +11,7 @@ HOST = 'localhost'
 PORT_NUM = 12345
 SOCKET_NUM = 0
 VERBOSE = False
+protocol = ''
 
 BOLD = "\033[1;30m"
 RED = "\033[1;31m"
@@ -94,10 +95,11 @@ def main():
 				data = data.decode("utf-8")
 				
 				#* CLIENT ASKING FOR QUOTE/COST FOR EXECUTING COMMAND
-				if data == "cost?":
+				if data[0] == '1':
 					cost = cost_for_execution()
-					print("- cost =", cost)
-					client.send(bytes( f"{cost}" , "utf-8"))
+					protocol = '10000 ' + ' | ' + str(sys.getsizeof(cost)) + ' | ' + str(cost)
+					print("Cost asked. Sending back cost:", protocol)
+					client.send(bytes( f"{protocol}" , "utf-8"))
 					continue
 
 				# DECODE RECEIVED DATA
@@ -123,12 +125,6 @@ def main():
 					print(requirements)	# DEBUG: PRINTS THE REQUIRED FILE AND ITS SIZE
 								# SEPARATED BY '='
 					
-					# USING GCC TO SPECIFICALLY COMPILE THE OUTPUT FILE IN THE TEMPORARY DIRECTORY.
-					#arguments[0] = 'gcc'
-					#arguments.append('&)
-					#arguments.append(mv)
-					
-					#shutil.rmtree(temporary_directory)
 					for requirement in requirements:
 						rfile = requirement.split('=')
 						
@@ -195,7 +191,7 @@ def main():
 				break
 		
 		client.close()
-		print(BOLD + ' Client disconnected from sd=' + str(SOCKET_NUM) + '\n' + RST)
+		print(RED + ' Client disconnected from sd=' + str(SOCKET_NUM) + '\n' + RST)
 		SOCKET_NUM -= 1
 		print(MAG + "listening on port " + str(PORT_NUM) + ", sd " + str(SOCKET_NUM) + RST)
 		print("----------------------------------------")

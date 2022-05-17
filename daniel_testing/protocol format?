@@ -1,0 +1,14 @@
+[bunch of integers]
+0/1	#Asking cost (1: client)/Sending cost			(1: server)
+0/1	#Client sends action (1: client)/Server receives action	(1: server)
+0/1	#Client sending file (1: client)/Server receiving file	(1: server)
+0/1	#Client receives file (1: client)/Server sends file	(1: server)
+0/1	#Server sending ack  (1: server)/Client receives ack	(1: client)
+
+|	# Splits the 'bools' from the payload size
+
+int	#Payload size
+
+|	#Splits the header from the payload
+
+Example format: 10000 | 24 | argument 
