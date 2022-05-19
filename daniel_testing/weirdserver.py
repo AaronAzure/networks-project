@@ -2,6 +2,7 @@ import socket
 import sys, getopt
 import os, subprocess
 import random
+import tempfile, shutil
 
 import time #! DELETE
 
@@ -28,6 +29,24 @@ def cost_for_execution():
 	and will then (next) ask that server to execute the command. 
 	'''
 	return random.randint(1, 100)
+
+
+def decode_header_fields(frame):
+	header = frame[:8]
+	payload = frame[8:]
+
+	if VERBOSE:
+		print(f"{CYN}header = {header}{RST}")
+		print(f"{CYN}args + req = {payload}{RST}")
+
+	asking_for_cost = bool(int(header[0]))
+	payload_length 	= int(header[1:5])
+	n_files_to_recv	= int(header[5:])
+
+	if len(payload) != payload_length:
+		payload = payload[:payload_length]
+
+	return (asking_for_cost, payload_length, n_files_to_recv, payload)
 
 
 def find_file(filename):
@@ -76,7 +95,7 @@ def main():
 
 	read_option_flags()
 
-	# A TCP based echo server
+	# A TCP-based server
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 	# Bind the IP address and the port number
@@ -102,37 +121,77 @@ def main():
 			# RECEIVED DATA FROM A CLIENT
 			if data: 
 				data = data.decode("utf-8")
+
+				frame_fields = decode_header_fields(data)
+				asking_for_cost = frame_fields[0]
+				payload_length 	= frame_fields[1]
+				n_files_to_recv = frame_fields[2]
+				payload 		= frame_fields[3]
+				print(frame_fields)
 				
 				#* CLIENT ASKING FOR QUOTE/COST FOR EXECUTING COMMAND
-				if data == "cost?":
+				if asking_for_cost == True:
 					cost = cost_for_execution()
 					print("- cost =", cost)
 					client.send(bytes( f"{cost}" , "utf-8"))
+					client.close()
 					data = None
-					continue
+					break
 
 				# DECODE RECEIVED DATA
-				SOCKET_NUM += 1
 				pid = os.fork()
 				# CHILD PROCESS DEALS WITH CURRENT ACTION
 				if pid == 0:
-					data = data.split(' Requirements:')
-					arguments = data[0].split()
-					requirements = []
-					
-					if len(data) == 2:
-						requirements = data[1].split()
+					payload = payload.split(' Requirements:')
+					arguments = payload[0].split()		# STORES ARGUMENTS AS A LIST.
+					requirements = []			# STORES INPUT FILE(S) AS A LIST.
+					input_dir = None			# TEMPORARY DIRECTORY FOR INPUTS
+					output_dir = None			# TEMPORARY DIRECTORY FOR OUTPUTS
+
+					if len(payload) == 2:
+						requirements = payload[1].split()
 
 					if VERBOSE:
 						print('arguments:', arguments, '\nrequirements:', requirements)
 					
-					# Find the file in the server's working directory.
-					count = 0
-					for argument in arguments:
-						if argument in requirements:
-							print('trying to find path of ', argument)
-							arguments[count] = find_file(argument)
-						count += 1
+					server_dir = os.getcwd()		# SERVER DIRECTORY
+					
+					# THERE ARE REQUIREMENTS
+					if n_files_to_recv > 0:
+						rfile = []				# REQUIREMENT FILES
+						input_dir = tempfile.mkdtemp()		# TEMPORARY DIRECTORY FOR INPUT FILE(S)
+						output_dir = tempfile.mkdtemp()		# TEMPORARY DIRECTORY FOUR OUTPUT FILE(S)
+						os.chdir(output_dir)			# CHANGE WORKING DIRECTORY TO output_dir.
+						for requirement in requirements:
+							print('getting reqs')
+							rfile = requirement.split('=')
+						
+							# Find the file in the server's working directory.
+							count = 0
+							for argument in arguments:
+								print('finding', argument)
+								print('current file is', input_dir + '/' + rfile[0])
+								if argument == rfile[0]:
+									arguments[count] = input_dir + '/' + rfile[0]
+									print ('new argument location:', argument)
+								count += 1
+
+							# READ BINARY FILE
+							if '.o' in rfile[0]:
+								file = open(input_dir + '/' + rfile[0], "wb")
+								payload = client.recv(int(rfile[1]))
+							
+							# READ ASCII TEXT FILE (I THINK)
+							else:
+								file = open(input_dir + '/' + rfile[0], "w")
+								payload = client.recv(int(rfile[1])).decode("utf-8")
+								
+							file.write(payload)
+							file.close()
+							
+							# INFORMING THE CLIENT THAT THE FILE HAS BEEN RECEIVED
+							client.send(bytes(f"{rfile[0]} file of size {rfile[1]} received\n", "utf-8"))
+						os.chdir(server_dir)			# CHANGE BACK TO ORIGINAL DIRECTORY
 					
 					# EXECUTES COMMAND
 					try:
@@ -151,14 +210,22 @@ def main():
 						print(f"--> out={reply}")
 						client.send(bytes(reply, "utf-8"))
 					
+						os.chdir(server_dir)
+
+						# DELETE ANY TEMP DIRECTORIES
+						if input_dir:
+							shutil.rmtree(input_dir)
+						if output_dir:
+							shutil.rmtree(output_dir)
+
 						client.close()
 						sys.exit(0)
 					except Exception as err:
     					# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
-						reply = '1' + '\n'
+						reply = '1\n'
 
 						# INFORM CLIENT THE RETURN OUTPUT OF EXECUTING THE COMMAND
-						reply += err
+						reply += str(err)
 						# elif execution.returncode != 0:
 						# 	reply += execution.stderr.decode("utf-8")
 
