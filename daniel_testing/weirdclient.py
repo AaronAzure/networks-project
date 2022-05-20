@@ -194,7 +194,7 @@ def execute_on_server(server_port_tuple, argument, requirements=None):
 		for requirement in requirements:
 			print(f'{BLU}> sending', requirement, RST)
 
-			if '.o' in requirement: 
+			if '.o' in requirement or '.' not in requirement: 
 				file = open(requirement, 'rb')
 			else:
 				file = open(requirement, 'r')
@@ -207,7 +207,7 @@ def execute_on_server(server_port_tuple, argument, requirements=None):
 			print(f'{BLU}> filesize = {file_size_struct}', RST)
 			sd.send( file_size_struct )
 
-			if '.o' in requirement:
+			if '.o' in requirement or '.' not in requirement:
 				sd.send( file_to_send )
 			else:
 				sd.send(bytes(file_to_send, "utf-8"))
@@ -335,6 +335,7 @@ def main():
 		inputs = []
 
 		if VERBOSE:
+			print(GRN, "--------------------------------------------------------------------------------", RST)
 			print('starting', actionset)
 			print(f"{GRN}{rake_dict[actionset]}{RST}")
 

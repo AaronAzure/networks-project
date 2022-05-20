@@ -192,7 +192,7 @@ def main():
 							# todo - RECEIVE THE SIZE OF FILE TO RECV
 							
 							# READ BINARY FILE
-							if '.o' in required_file:
+							if '.o' in required_file or '.' not in required_file:
 								# required_file = ../sample/okajndj
 								file = open(required_file, "wb")
 								file_data = client.recv( file_to_recv_size )
@@ -211,19 +211,19 @@ def main():
 							for i in range(len(arguments)):
 								if arguments[i] == required_file:
 									arguments[i] = input_dir + '/' + required_file
-									print(f" - {arguments[i]}")
 							
 						os.chdir( output_dir )			# CHANGE WORKING DIRECTORY TO output_dir.
 
 					# EXECUTES COMMAND
 					# execution = subprocess.run(arguments, capture_output=True)
-					print(f"{YEL}EXECUTING = {arguments}{RST}")
+					# todo - print(f"{YEL}EXECUTING = {arguments}{RST}")
 					execution = subprocess.run(' '.join(arguments), capture_output=True, shell=True)
 
 					# INFORM CLIENT OF ANY OUTPUT FILES.
 					
+					n_output_files_created = [f for f in os.listdir( output_dir ) if os.path.isfile(os.path.join(output_dir, f))]
 					# NO OUTPUT FILES.
-					if requirements == []:	# Non-compiling action executed.
+					if len(n_output_files_created) == 0:	# Non-compiling action executed.
 						# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
 						exit_status = execution.returncode
 				
@@ -246,11 +246,15 @@ def main():
 					else:
 						#########
 						exit_status = execution.returncode
-						
-						files = os.listdir(output_dir)
+
+						onlyfiles = [f for f in os.listdir( output_dir ) if os.path.isfile(os.path.join(output_dir, f))]
+						print(f"{RED} {onlyfiles}",RST)
+
+						files = os.listdir( output_dir )
 						filenamelength = len(files[0])
 						filesize = os.path.getsize(files[0])
 						
+						print(f"> stat={exit_status}, filesize={filesize}")
 						file = open(files[0], 'rb')
 						reading_file = file.read()
 						
@@ -262,7 +266,7 @@ def main():
 						client.send(header)
 						
 						client.send(bytes(files[0],"utf-8"))
-						
+
 						client.send(reading_file)
 						file.close()
 					
