@@ -180,6 +180,8 @@ def main():
 									print ('new argument location:', argument)
 								count += 1
 
+							# todo - RECEIVE THE SIZE OF FILE TO RECV
+
 							# READ BINARY FILE
 							if '.o' in rfile[0]:
 								file = open(input_dir + '/' + rfile[0], "wb")
@@ -198,7 +200,8 @@ def main():
 						os.chdir(server_dir)			# CHANGE BACK TO ORIGINAL DIRECTORY
 					
 					# EXECUTES COMMAND
-					execution = subprocess.run(arguments, capture_output=True)
+					# execution = subprocess.run(arguments, capture_output=True)
+					execution = subprocess.run(arguments, capture_output=True, shell=True)
 
 					# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
 					exit_status = execution.returncode

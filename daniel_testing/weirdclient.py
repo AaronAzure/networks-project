@@ -172,13 +172,13 @@ def execute_on_server(server_port_tuple, argument, requirements=None):
 	# If there are file requirements, add them as a string to arguments, seperated by ' Requirements: '.
 	# Additionally, these files will need to be sent to the server as well. Meaning the server
 	# must also know the size of the file in the case it exceeds 1024 bytes.
-	n_req_files = 0
+	# n_req_files = 0
 	if requirements != None:
-		argument += ' Requirements: '
+		argument += ' Requirements:'
 		for requirement in requirements:
-			argument += requirement
 			argument += ' '
-			n_req_files += 1
+			argument += requirement
+			# n_req_files += 1
 	
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	sd.connect( server_port_tuple )
@@ -189,6 +189,31 @@ def execute_on_server(server_port_tuple, argument, requirements=None):
 	
 	# SENDS SERVER THE COMMAND/ACTION TO BE EXECUTED
 	sd.send(bytes(argument, "utf-8"))
+
+	# SEND FILES TO SERVER
+	if requirements != None:
+		for requirement in requirements:
+			print(f'{BLU}> sending', requirement, RST)
+			if '.o' in requirement: 
+				file = open(file_path(requirement), 'rb')
+				
+			else:
+				file = open(file_path(requirement), 'r')
+			
+			file_to_send = file.read()
+
+			if '.o' in requirement:
+				sd.send( file_to_send )
+			else:
+				sd.send(bytes(file_to_send, "utf-8"))
+			
+			file.close()
+
+			file_confirmation = sd.recv(1024)
+			file_confirmation = file_confirmation.decode("utf-8")
+			print('Should be receiving a file confirmation. Nothing else.')
+			print(CYN)
+			print(f"{CYN} {file_confirmation} {RST}")
 
 	return sd
 	
@@ -302,10 +327,6 @@ def main():
 	error_in_actionset = False
 	for actionset in actionset_names:
 
-		if error_in_actionset:
-			print(f"{RED}error detected in actionset - halting subsequent actionsets{RST}")
-			break
-
 		current_action = 0
 		outputs_received = 0
 		total_actions = len(rake_dict[ actionset ])
@@ -384,6 +405,9 @@ def main():
 					sd.close()
 					inputs.remove(sd)
 
+		if error_in_actionset:
+			print(f"{RED}error detected in actionset - halting subsequent actionsets{RST}")
+			break
 		
 
 	if VERBOSE:
