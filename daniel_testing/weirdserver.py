@@ -2,6 +2,7 @@ import socket
 import sys, getopt
 import os, subprocess
 import random
+import struct
 import tempfile, shutil
 
 import time #! DELETE
@@ -16,6 +17,7 @@ BOLD = "\033[1;30m"
 RED = "\033[1;31m"
 GRN = "\033[1;32m"
 YEL = "\033[1;33m"
+BLU = "\033[1;34m"
 MAG = "\033[1;35m"
 CYN = "\033[1;36m"
 RST = "\033[0m"
@@ -29,24 +31,6 @@ def cost_for_execution():
 	and will then (next) ask that server to execute the command. 
 	'''
 	return random.randint(1, 100)
-
-
-def decode_header_fields(frame):
-	header = frame[:8]
-	payload = frame[8:]
-
-	if VERBOSE:
-		print(f"{CYN}header = {header}{RST}")
-		print(f"{CYN}args + req = {payload}{RST}")
-
-	asking_for_cost = bool(int(header[0]))
-	payload_length 	= int(header[1:5])
-	n_files_to_recv	= int(header[5:])
-
-	if len(payload) != payload_length:
-		payload = payload[:payload_length]
-
-	return (asking_for_cost, payload_length, n_files_to_recv, payload)
 
 
 def find_file(filename):
@@ -116,54 +100,74 @@ def main():
 		client, addr = sd.accept() #! BLOCKING
 		SOCKET_NUM += 1
 		print(BOLD + " Accepted new client on sd=" + str(SOCKET_NUM) + RST)
-		while True:
-			data = client.recv(2048)     #! BLOCKING
-			# RECEIVED DATA FROM A CLIENT
-			if data: 
-				data = data.decode("utf-8")
+		
+		# while True: 
+		# 	data = client.recv(8)     #! BLOCKING
+		# 	if data != None:
+		# 		# DECRYPT HEADER
+		# 		header = struct.unpack('i i', data)
+		# 		asking_for_cost = bool(header[0])
+		# 		command_length = header[1]
+		# 		print(data)
+		# 		print(header)
 
-				frame_fields = decode_header_fields(data)
-				asking_for_cost = frame_fields[0]
-				payload_length 	= frame_fields[1]
-				n_files_to_recv = frame_fields[2]
-				payload 		= frame_fields[3]
-				print(frame_fields)
-				
-				#* CLIENT ASKING FOR QUOTE/COST FOR EXECUTING COMMAND
-				if asking_for_cost == True:
-					cost = cost_for_execution()
-					print("- cost =", cost)
-					client.send(bytes( f"{cost}" , "utf-8"))
+		# 		potato = struct.pack('i i', 18, 76586)
+		# 		client.send( potato )
+		# 		client.close()
+		# 		break
+		# continue
+		
+		while True: 
+			data = client.recv(8)     #! BLOCKING
+			if data != None:
+				# DECRYPT HEADER
+				header = struct.unpack('i i', data)
+				asking_for_cost = bool(header[0])
+				command_length = header[1]
+
+				if asking_for_cost:
+					quote = cost_for_execution()
+					cost_response = struct.pack('i', quote)
+					print("> cost =", quote)
+					client.send( cost_response )
 					client.close()
 					data = None
 					break
+
+				data = client.recv(command_length)     #! BLOCKING
+				payload = data.decode("utf-8")
+				
+				#* CLIENT ASKING FOR QUOTE/COST FOR EXECUTING COMMAND
 
 				# DECODE RECEIVED DATA
 				pid = os.fork()
 				# CHILD PROCESS DEALS WITH CURRENT ACTION
 				if pid == 0:
 					payload = payload.split(' Requirements:')
-					arguments = payload[0].split()		# STORES ARGUMENTS AS A LIST.
-					requirements = []			# STORES INPUT FILE(S) AS A LIST.
-					input_dir = None			# TEMPORARY DIRECTORY FOR INPUTS
-					output_dir = None			# TEMPORARY DIRECTORY FOR OUTPUTS
+					arguments = payload[0].split()	# STORES ARGUMENTS AS A LIST.
+					requirements = []				# STORES INPUT FILE(S) AS A LIST.
+					input_dir = None				# TEMPORARY DIRECTORY FOR INPUTS
+					output_dir = None				# TEMPORARY DIRECTORY FOR OUTPUTS
 
 					if len(payload) == 2:
 						requirements = payload[1].split()
 
 					if VERBOSE:
-						print('arguments:', arguments, '\nrequirements:', requirements)
+						print('< arguments:', arguments, '\n< requirements:', requirements)
 					
-					server_dir = os.getcwd()		# SERVER DIRECTORY
+					# SERVER DIRECTORY
+					server_dir = os.getcwd()		
 					
 					# THERE ARE REQUIREMENTS
-					if n_files_to_recv > 0:
-						rfile = []				# REQUIREMENT FILES
-						input_dir = tempfile.mkdtemp()		# TEMPORARY DIRECTORY FOR INPUT FILE(S)
-						output_dir = tempfile.mkdtemp()		# TEMPORARY DIRECTORY FOUR OUTPUT FILE(S)
-						os.chdir(output_dir)			# CHANGE WORKING DIRECTORY TO output_dir.
+					if len(requirements) > 0:
+						rfile = []						# REQUIREMENT FILES
+						input_dir = tempfile.mkdtemp()	# TEMPORARY DIRECTORY FOR INPUT FILE(S)
+						output_dir = tempfile.mkdtemp()	# TEMPORARY DIRECTORY FOUR OUTPUT FILE(S)
+						os.chdir( output_dir )			# CHANGE WORKING DIRECTORY TO output_dir.
+						print(f"{BLU}input_dir  = {input_dir}{RST}")
+						print(f"{BLU}output_dir = {output_dir}{RST}")
+						
 						for requirement in requirements:
-							print('getting reqs')
 							rfile = requirement.split('=')
 						
 							# Find the file in the server's working directory.
@@ -179,14 +183,14 @@ def main():
 							# READ BINARY FILE
 							if '.o' in rfile[0]:
 								file = open(input_dir + '/' + rfile[0], "wb")
-								payload = client.recv(int(rfile[1]))
+								payload = client.recv( int(rfile[1]) )
 							
-							# READ ASCII TEXT FILE (I THINK)
+							#! READ ASCII TEXT FILE (I THINK)
 							else:
 								file = open(input_dir + '/' + rfile[0], "w")
-								payload = client.recv(int(rfile[1])).decode("utf-8")
+								payload = client.recv( int(rfile[1]) ).decode("utf-8")
 								
-							file.write(payload)
+							file.write( payload )
 							file.close()
 							
 							# INFORMING THE CLIENT THAT THE FILE HAS BEEN RECEIVED
@@ -194,50 +198,47 @@ def main():
 						os.chdir(server_dir)			# CHANGE BACK TO ORIGINAL DIRECTORY
 					
 					# EXECUTES COMMAND
-					try:
-						execution = subprocess.run(arguments, capture_output=True)	# RUN sleep 5, but not errors
+					execution = subprocess.run(arguments, capture_output=True)
+
+					# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
+					exit_status = execution.returncode
+			
+					# INFORM CLIENT THE RETURN OUTPUT OF EXECUTING THE COMMAND
+					if exit_status == 0 and execution.stdout != None:
+						output = execution.stdout.decode("utf-8")
+					elif exit_status != 0 and execution.stderr != None:
+						output = execution.stderr.decode("utf-8")
+
+					output_status = struct.pack('i i', exit_status, len(output))
+					print(f"> stat={execution.returncode}, len={len(output)}")
+					client.send( output_status )
+
+
+					#! time.sleep( os.getpid() % 10 * 0.1) # AVOID CRASHES
+					print(f"> out={output}")
+					client.send(bytes(output, "utf-8"))
 				
-						# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
-						reply = str(execution.returncode) + '\n'
+					os.chdir(server_dir)
 
-						# INFORM CLIENT THE RETURN OUTPUT OF EXECUTING THE COMMAND
-						if execution.returncode == 0:
-							reply += execution.stdout.decode("utf-8")
-						# elif execution.returncode != 0:
-						# 	reply += execution.stderr.decode("utf-8")
+					# DELETE ANY TEMP DIRECTORIES
+					if input_dir:
+						print(f"{YEL} - DELETING FILES - {RST}")
+						shutil.rmtree( input_dir )
+					if output_dir:
+						print(f"{YEL} - DELETING FILES - {RST}")
+						shutil.rmtree( output_dir )
 
-						time.sleep( os.getpid() % 10 * 0.1) # AVOID CRASHES
-						print(f"--> out={reply}")
-						client.send(bytes(reply, "utf-8"))
-					
-						os.chdir(server_dir)
+					client.close()
+					print(BOLD + ' Client disconnected from sd=' + str(SOCKET_NUM) + '\n' + RST)
+					SOCKET_NUM -= 1
+					print(MAG + "listening on port " + str(PORT_NUM) + ", sd " + str(SOCKET_NUM) + RST)
+					print("----------------------------------------")
+					sys.exit( exit_status )
 
-						# DELETE ANY TEMP DIRECTORIES
-						if input_dir:
-							shutil.rmtree(input_dir)
-						if output_dir:
-							shutil.rmtree(output_dir)
-
-						client.close()
-						sys.exit(0)
-					except Exception as err:
-    					# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
-						reply = '1\n'
-
-						# INFORM CLIENT THE RETURN OUTPUT OF EXECUTING THE COMMAND
-						reply += str(err)
-						# elif execution.returncode != 0:
-						# 	reply += execution.stderr.decode("utf-8")
-
-						time.sleep( os.getpid() % 10 * 0.1) # AVOID CRASHES
-						print(f"--> out={reply}")
-						client.send(bytes(reply, "utf-8"))
-						
-						client.close()
-						sys.exit(1)
 				# PARENT PROCESS LISTENS FOR OTHER CLIENT REQUEST(S)
 				else:
 					data = None
+					print("created a child process to execute command")
 					break
 			# FINISHED RECEIVING DATA FROM CLIENT
 			else:

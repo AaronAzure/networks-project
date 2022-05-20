@@ -8,10 +8,12 @@ import subprocess
 import sys
 import select
 import socket
+import struct
 import time #! DELETE
 
 BOLD = "\033[1;30m"
 RED = "\033[1;31m"
+BLU = "\033[1;34m"
 GRN = "\033[1;32m"
 YEL = "\033[1;33m"
 MAG = "\033[1;35m"
@@ -26,9 +28,11 @@ VERBOSE = False
 rakefile  = 'Rakefile'	# Will be used to store rakefile.
 #################################################################################
 
+
+
 def fread(filename):
 	'''
-	Function that receives a filename and then returns an important and stripped list of lines.
+	Function that receives a filename and then returns important, stripped list of lines.
 	'''
 	rfile = open(filename, 'r')
 	lines = rfile.readlines()
@@ -58,16 +62,14 @@ def fread(filename):
 
 def extract_info(items):
 	'''
-	Extract important information from @param items into a dictionary format
+	Extract important information from @param items into a dictionary (mapping) format
 	Function that converts all items in a list to a dictionary, which is then returned.	
 	'''
-	
 	# Dictionary holding the port number, a 1D array of hosts and a 2D arrays of action sets.
 	item_dictionary = {'Port': '', 'Hosts': []}
 	
 	# variables for the action set
 	count = 1
-	action = []
 	current_actionset = ''
 	
 	global DEFAULT_PORT
@@ -90,11 +92,15 @@ def extract_info(items):
 		
 		# STORE ACTION.
 		elif item.count('\t') == 1 and item != '\t':
-			item_dictionary[current_actionset].append([item.strip()])
+			action = item.strip()
+			if len(action) > 0:
+				item_dictionary[ current_actionset ].append( [action] )
 		
 		# STORE REQUIREMENTS FOR PREVIOUS ACTION.
-		elif item.count('\t') == 2 and len(item_dictionary[current_actionset]) > 0:
-			item_dictionary[current_actionset][-1].append(item.strip())
+		elif item.count('\t') == 2 and len(item_dictionary[ current_actionset ]) > 0:
+			req_file = item.strip()
+			if len(req_file) > 0:
+				item_dictionary[ current_actionset ][-1].append( req_file )
 		
 	# All hosts with no specified port number get assigned the default port number.
 	count = 0
@@ -132,103 +138,94 @@ def file_path(filename):
 		if filename in f:
 			return os.path.join(r, filename)
 	return None
-	
-	
 
-def execute_on_server(server_port_tuple, argument, requirements = None):
+	
+# def send_command_to_server(sd, argument, requirements=None):
+# 	'''
+# 	Function that performes actions that require the server. 
+# 	Receives the action and a list of the necessary files.
+# 	'''
+# 	# If there are file requirements, add them as a string to arguments, seperated by ' Requirements: '.
+# 	# Additionally, these files will need to be sent to the server as well. Meaning the server
+# 	# must also know the size of the file in the case it exceeds 1024 bytes.
+# 	n_req_files = 0
+# 	if requirements != None:
+# 		argument += ' Requirements: '
+# 		for requirement in requirements:
+# 			argument += requirement
+# 			argument += ' '
+# 			n_req_files += 1
+	
+# 	# INFORMS SERVER THE STRUCT
+# 	header = struct.pack('i i', 0, len(argument))
+# 	sd.send( header )
+	
+# 	# SENDS SERVER THE COMMAND/ACTION TO BE EXECUTED
+# 	sd.send(bytes(argument, "utf-8"))
+
+
+def execute_on_server(server_port_tuple, argument, requirements=None):
 	'''
 	Function that performes actions that require the server. 
 	Receives the action and a list of the necessary files.
 	'''
 	# If there are file requirements, add them as a string to arguments, seperated by ' Requirements: '.
-	if not requirements == None:
+	# Additionally, these files will need to be sent to the server as well. Meaning the server
+	# must also know the size of the file in the case it exceeds 1024 bytes.
+	n_req_files = 0
+	if requirements != None:
 		argument += ' Requirements: '
 		for requirement in requirements:
 			argument += requirement
 			argument += ' '
+			n_req_files += 1
 	
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	sd.connect( server_port_tuple )
+	
+	# INFORMS SERVER THE STRUCT
+	header = struct.pack('i i', 0, len(argument))
+	sd.send( header )
+	
+	# SENDS SERVER THE COMMAND/ACTION TO BE EXECUTED
 	sd.send(bytes(argument, "utf-8"))
-	
-	# CLIENT RECEIVES FROM SERVER, THE STATUS AND OUTPUT OF EXECUTING ACTION
-	response = sd.recv(2048)
-	response = response.decode("utf-8")
-	status = int(response.splitlines()[0])
-	
-	if VERBOSE:
-		print(f"stat = |{ response.splitlines()[0] }|")
-	
-	# REPORT OUTPUT TO SCREEN
-	output = response.splitlines(True)[1:]
-	if status == 0:
-		print(''.join(output))
-	else:
-		print("error:")
-		print(''.join(output))
-	
-	sd.close()
-	return status
+
+	return sd
 	
 
-# def get_all_cost_nonblocking(server_port_tuple, argument, requirements = None):
-def get_cheapest_host(hosts):
+def get_cheapest_host(hosts, argument, requirements=None):
 	'''
 	Simultaneously get the cost of each remote host, 
 	and report back the remote host with the lowest cost
 	'''
+	n_req_files = 0
+	if requirements != None:
+		argument += ' Requirements: '
+		for requirement in requirements:
+			argument += requirement
+			argument += ' '
+			n_req_files += 1
 	
-	inputs = []
-	outputs = []
+	frame = struct.pack('i i', 1, len(argument))
 
-    # INITIALISE ALL REMOTE HOST(S)
+	cheapest_host = 0
+	lowest_cost = float('inf')
+
 	for i in range(len(hosts)):
 		sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		sd.connect( hosts[i] )
+
+		sd.send( frame )
+
+		reply = sd.recv(4)
+		reply = struct.unpack('i', reply)
+		cost = reply[0]
 		
-		sd.setblocking(False)
-		inputs.append(sd)
-		outputs.append(sd)
+		# REMEMBER THE REMOTE HOST RETURNING THE LOWEST COST TO RUN THE COMMAND
+		if cost < lowest_cost:
+			lowest_cost = cost
+			cheapest_host = i
 
-	cheapest_host = hosts[0]
-	lowest_cost = float('inf')
-
-	if VERBOSE:
-		print(f"\n{GRN} non-blocking: {RST}")
-	
-	while inputs:
-		readable, writable, exceptional = select.select(inputs, outputs, inputs)
-
-		# WRITE TO SERVER, WHEN CONNECTED
-		for sd in writable:
-			# sd.send(bytes(argument, "utf-8"))
-			sd.send(bytes("cost?", "utf-8"))
-			outputs.remove(sd)
-		
-		# READ FROM SERVER, WHILST CONNECTED
-		for sd in readable:
-			reply = sd.recv(2048)
-			reply_cost = int( reply.decode("utf-8") )
-
-			# CHEAPEST HOST TO RUN COMMAND/ACTION
-			if reply_cost < lowest_cost:
-				lowest_cost = reply_cost
-				cheapest_host = sd.getpeername()
-
-			sd.close()
-			inputs.remove(sd)
-			break
-		
-		# READ FROM SERVER, WHILST CONNECTED
-		for sd in exceptional:
-			outputs.remove(sd)
-			inputs.remove(sd)
-			break
-			
-	if VERBOSE:
-		print(f"{GRN} done non-blocking actions {RST}")
-	
-	# RETURN REMOTE ADDRESS CHEAPEST HOST TO RUN COMMAND/ACTION
 	return cheapest_host
 	
 
@@ -237,6 +234,7 @@ def read_option_flags():
 	global VERBOSE
 	global PORT_NUM
 	global SOCKET_NUM
+	global rakefile 
 
 	try:
 		opts, args = getopt.getopt(sys.argv[1:], "vhi:p:r:")
@@ -300,44 +298,93 @@ def main():
 		start_time = time.time()
 	
 
-	# # PERFORM ACTION ON SERVER ( HOSTS )
+	# PERFORM ACTION ON SERVER ( HOSTS )
 	error_in_actionset = False
 	for actionset in actionset_names:
-		processes = []
+
 		if error_in_actionset:
-			print("error detected in actionset - halting subsequent actionsets")
+			print(f"{RED}error detected in actionset - halting subsequent actionsets{RST}")
 			break
 
-		for action in rake_dict[ actionset ]:
-			pid = os.fork()
-			# CHILD PROCESS
-			if pid == 0:
-				#* IF ACTION IS REMOTE, THEN CHECK COST FROM EACH SERVER
+		current_action = 0
+		outputs_received = 0
+		total_actions = len(rake_dict[ actionset ])
+		still_waiting_for_outputs = True
+
+		inputs = []
+
+		if VERBOSE:
+			print('starting', actionset)
+			print(f"{GRN}{rake_dict[actionset]}{RST}")
+
+		while still_waiting_for_outputs:
+			if current_action < total_actions:
+				action = rake_dict[actionset][current_action]
+
+				if VERBOSE:
+					print(f'{CYN}running {action[0]}{RST}')
+				
+				# CHECK IF ACTION HAS REQUIREMENTS
+				requirements = None
+				if len(action) > 1: # HAS REQUIREMENT FILES
+					requirements = action[1].strip('requires').split()
+
+				#* IF ACTION IS REMOTE, THEN CHECK COST FROM EACH REMOTE SERVER
 				if action[0].find('remote-') == 0:
-					cheapest_host = get_cheapest_host( hosts ) # cost simulateonusly
+					argument = action[0].split("remote-")[1]
+
+					cheapest_host = get_cheapest_host( hosts, argument, requirements) # cost simulateonusly
 
 					# EXECUTE ON CHEAPEST REMOTE HOST
 					print(f"{YEL} --- REMOTE EXECUTION --- {RST}")
-					# print(f"executing order on {cheapest_host}")
-					exit_status = execute_on_server( cheapest_host , action[0].split("remote-")[1])
-				#* ELSE, EXECUTE ON LOCAL SERVER
+					sd = execute_on_server( hosts[cheapest_host] , argument , requirements )
+					print(f"{BLU}> {argument} {requirements}{RST}")
+					inputs.append(sd)
+			
+				#* IF ACTION IS LOCAL, EXECUTE ON LOCAL SERVER
 				else:
-					print(f"{YEL} --- LOCAL EXECUTION --- {RST}")
-					exit_status = execute_on_server( ('localhost' , DEFAULT_PORT) , action[0])
-				
-				sys.exit(exit_status)
-			# PARENT PROCESS
-			else:
-				processes.append(pid)
 
-		# WAIT TILL ALL ACTIONS HAVE BEEN EXECUTED
-		while processes:
-			pid, exit_code = os.waitpid(-1, 0)
-			if pid != 0:
-				if pid in processes:
-					processes.remove(pid)
-					if (exit_code >> 8) != 0:
+					print(f"{YEL} --- LOCAL EXECUTION --- {RST}")
+					sd = execute_on_server( ( 'localhost' , DEFAULT_PORT ) , action[0], requirements )
+					print(f"{BLU}> {action[0]} {requirements}{RST}")
+					inputs.append(sd)
+
+				current_action += 1
+			
+			if inputs:
+				readable, writable, exceptional = select.select(inputs, [], inputs, 0)
+				# READ FROM SERVER, WHILST CONNECTED
+				for sd in readable:
+					reply = sd.recv(8)
+					
+					# DECRYPT HEADER
+					header = struct.unpack('i i', reply)
+					exit_status = header[0]
+					output_size = header[1]
+					print(f"< out_size:\n{output_size}")
+					print(f"< status:\n{exit_status}")
+
+					reply = sd.recv(output_size)
+					output = reply.decode("utf-8")
+					print(f"< output:\n{output}")
+					
+					if exit_status != 0:
 						error_in_actionset = True
+					
+					sd.close()
+					inputs.remove(sd)
+					
+					outputs_received += 1
+					if outputs_received >= total_actions:
+						still_waiting_for_outputs = False
+				
+				# READ FROM SERVER, WHILST CONNECTED
+				for sd in exceptional:
+					error_in_actionset = True
+					sd.close()
+					inputs.remove(sd)
+
+		
 
 	if VERBOSE:
 		print(f"{YEL}----------------------------------{RST}")
@@ -350,3 +397,66 @@ if __name__ == "__main__":
 	main()
 
 # NOTE: SHOULD WORK WITH `python3 client-p.py`
+
+# for action in rake_dict[ actionset ]:
+			
+# 	# * IF ACTION IS REMOTE, THEN CHECK COST FROM EACH SERVER
+# 	if action[0].find('remote-') == 0:
+
+# 		cheapest_host = get_cheapest_host( hosts ) # cost simulateonusly
+
+# 		# EXECUTE ON CHEAPEST REMOTE HOST
+# 		print(f"{YEL} --- REMOTE EXECUTION --- {RST}")
+# 		print(f"executing order on {cheapest_host}")
+# 		execute_on_server( cheapest_host , action[0].split("remote-")[1])
+
+
+# for actionset in actionset_names:
+	# processes = []
+	# if error_in_actionset:
+	# 	print("error detected in actionset - halting subsequent actionsets")
+	# 	break
+
+	# for action in rake_dict[ actionset ]:
+	# 	pid = os.fork()
+	# 	# CHILD PROCESS
+	# 	if pid == 0:
+	# 		#* IF ACTION IS REMOTE, THEN CHECK COST FROM EACH SERVER
+	# 		if action[0].find('remote-') == 0:
+	# 			argument = action[0].split("remote-")[1]
+	# 			requirements = None
+	# 			# HAS REQUIREMENT FILES
+	# 			if len(action) > 1:
+	# 				requirements = action[1].strip('requires').split()
+
+	# 			cheapest_host = get_cheapest_host( hosts , argument ) # cost simulateonusly
+
+	# 			# EXECUTE ON CHEAPEST REMOTE HOST
+	# 			print(f"{YEL} --- REMOTE EXECUTION --- {RST}")
+		
+	# 			exit_status = execute_on_server( cheapest_host , argument , requirements )
+	# 		#* ELSE, EXECUTE ON LOCAL SERVER
+	# 		else:
+		
+	# 			requirements = None
+	# 			# HAS REQUIREMENT FILES
+	# 			if len(action) > 1:
+	# 				requirements = action[1].strip('requires').split()
+
+	# 			print(f"{YEL} --- LOCAL EXECUTION --- {RST}")
+		
+	# 			exit_status = execute_on_server( ('localhost' , DEFAULT_PORT) , action[0], requirements )
+	
+	# 		sys.exit(exit_status)
+	# 	# PARENT PROCESS
+	# 	else:
+	# 		processes.append(pid)
+
+	# # WAIT TILL ALL ACTIONS HAVE BEEN EXECUTED
+	# while processes:
+	# 	pid, exit_code = os.waitpid(-1, 0)
+	# 	if pid != 0:
+	# 		if pid in processes:
+	# 			processes.remove(pid)
+	# 			if (exit_code >> 8) != 0:
+	# 				error_in_actionset = True
