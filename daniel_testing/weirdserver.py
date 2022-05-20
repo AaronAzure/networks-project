@@ -71,6 +71,15 @@ def read_option_flags():
 		sys.exit(2)
 
 
+def convert_filepath_to_local(files):
+	
+	result = files
+	for i in range(len(result)):
+		result[i] = result[i].split('/')[-1]
+
+	return result
+
+
 def main():
 	global HOST
 	global VERBOSE
@@ -134,7 +143,8 @@ def main():
 					data = None
 					break
 
-				data = client.recv(command_length)     #! BLOCKING
+				# RECEIVE THE COMMAND + REQUIREMENTS
+				data = client.recv( command_length )     #! BLOCKING
 				payload = data.decode("utf-8")
 				
 				#* CLIENT ASKING FOR QUOTE/COST FOR EXECUTING COMMAND
@@ -145,12 +155,15 @@ def main():
 				if pid == 0:
 					payload = payload.split(' Requirements:')
 					arguments = payload[0].split()	# STORES ARGUMENTS AS A LIST.
+					arguments = convert_filepath_to_local( arguments )
+
 					requirements = []				# STORES INPUT FILE(S) AS A LIST.
 					input_dir = None				# TEMPORARY DIRECTORY FOR INPUTS
 					output_dir = None				# TEMPORARY DIRECTORY FOR OUTPUTS
 
 					if len(payload) == 2:
 						requirements = payload[1].split()
+						requirements = convert_filepath_to_local( requirements )
 
 					if VERBOSE:
 						print('< arguments:', arguments, '\n< requirements:', requirements)
@@ -160,70 +173,120 @@ def main():
 					
 					# THERE ARE REQUIREMENTS
 					if len(requirements) > 0:
-						rfile = []						# REQUIREMENT FILES
+						# rfile = []						# REQUIREMENT FILES
 						input_dir = tempfile.mkdtemp()	# TEMPORARY DIRECTORY FOR INPUT FILE(S)
 						output_dir = tempfile.mkdtemp()	# TEMPORARY DIRECTORY FOUR OUTPUT FILE(S)
-						os.chdir( output_dir )			# CHANGE WORKING DIRECTORY TO output_dir.
+						os.chdir( input_dir )			# CHANGE WORKING DIRECTORY TO input_dir.
 						print(f"{BLU}input_dir  = {input_dir}{RST}")
 						print(f"{BLU}output_dir = {output_dir}{RST}")
 						
-						for requirement in requirements:
-							rfile = requirement.split('=')
+						# RECEIVE EACH REQUIRED FILE
+						for required_file in requirements:
+							# rfile = requirement.split('=')
 						
-							# Find the file in the server's working directory.
-							count = 0
-							for argument in arguments:
-								print('finding', argument)
-								print('current file is', input_dir + '/' + rfile[0])
-								if argument == rfile[0]:
-									arguments[count] = input_dir + '/' + rfile[0]
-									print ('new argument location:', argument)
-								count += 1
+							# GET THE SIZE OF THE FILE TO BE RECEIVED FROM THE CLIENT
+							reply = client.recv(4)
+							data_size = struct.unpack('i', reply)
+							file_to_recv_size = data_size[0]
 
 							# todo - RECEIVE THE SIZE OF FILE TO RECV
-
+							
 							# READ BINARY FILE
-							if '.o' in rfile[0]:
-								file = open(input_dir + '/' + rfile[0], "wb")
-								payload = client.recv( int(rfile[1]) )
+							if '.o' in required_file:
+								# required_file = ../sample/okajndj
+								file = open(required_file, "wb")
+								file_data = client.recv( file_to_recv_size )
+								# payload = client.recv( int(rfile[1]) )
 							
-							#! READ ASCII TEXT FILE (I THINK)
+							# ! READ ASCII TEXT FILE (I THINK)
 							else:
-								file = open(input_dir + '/' + rfile[0], "w")
-								payload = client.recv( int(rfile[1]) ).decode("utf-8")
+								file = open(required_file, "w")
+								file_data = client.recv( file_to_recv_size ).decode("utf-8")
+								# payload = client.recv( int(rfile[1]) ).decode("utf-8")
 								
-							file.write( payload )
+							file.write( file_data )
 							file.close()
+
+							# TRANSLATE FILE LOCATION WITH RESPECT TO SERVER DIRECTORY
+							for i in range(len(arguments)):
+								if arguments[i] == required_file:
+									arguments[i] = input_dir + '/' + required_file
+									print(f" - {arguments[i]}")
 							
-							# INFORMING THE CLIENT THAT THE FILE HAS BEEN RECEIVED
-							client.send(bytes(f"{rfile[0]} file of size {rfile[1]} received\n", "utf-8"))
-						os.chdir(server_dir)			# CHANGE BACK TO ORIGINAL DIRECTORY
-					
+						os.chdir( output_dir )			# CHANGE WORKING DIRECTORY TO output_dir.
+
 					# EXECUTES COMMAND
 					# execution = subprocess.run(arguments, capture_output=True)
-					execution = subprocess.run(arguments, capture_output=True, shell=True)
+					print(f"{YEL}EXECUTING = {arguments}{RST}")
+					execution = subprocess.run(' '.join(arguments), capture_output=True, shell=True)
 
-					# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
-					exit_status = execution.returncode
-			
-					# INFORM CLIENT THE RETURN OUTPUT OF EXECUTING THE COMMAND
-					if exit_status == 0 and execution.stdout != None:
-						output = execution.stdout.decode("utf-8")
-					elif exit_status != 0 and execution.stderr != None:
-						output = execution.stderr.decode("utf-8")
-
-					output_status = struct.pack('i i', exit_status, len(output))
-					print(f"> stat={execution.returncode}, len={len(output)}")
-					client.send( output_status )
-
-
-					#! time.sleep( os.getpid() % 10 * 0.1) # AVOID CRASHES
-					print(f"> out={output}")
-					client.send(bytes(output, "utf-8"))
+					# INFORM CLIENT OF ANY OUTPUT FILES.
+					
+					# NO OUTPUT FILES.
+					if requirements == []:	# Non-compiling action executed.
+						# INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
+						exit_status = execution.returncode
 				
+						# INFORM CLIENT THE RETURN OUTPUT OF EXECUTING THE COMMAND
+						if exit_status == 0 and execution.stdout != None:
+							output = execution.stdout.decode("utf-8")
+						elif exit_status != 0 and execution.stderr != None:
+							output = execution.stderr.decode("utf-8")
+
+						output_status = struct.pack('i i i', exit_status, 0, len(output))
+						print(f"> stat={execution.returncode}, len={len(output)}")
+						client.send( output_status )
+
+
+						#! time.sleep( os.getpid() % 10 * 0.1) # AVOID CRASHES
+						print(f"> out={output}")
+						client.send(bytes(output, "utf-8"))
+						
+					# HAS OUTPUT FILES.
+					else:
+						#########
+						exit_status = execution.returncode
+						
+						files = os.listdir(output_dir)
+						filenamelength = len(files[0])
+						filesize = os.path.getsize(files[0])
+						
+						file = open(files[0], 'rb')
+						reading_file = file.read()
+						
+						#########
+						print(f"> stat={exit_status}, filesize={filesize}")
+						header = struct.pack('i i i', exit_status, filenamelength, filesize)
+						# print("Header with a file output:", header)
+						# print("Funny header size:", struct.calcsize('iii'))
+						client.send(header)
+						
+						client.send(bytes(files[0],"utf-8"))
+						
+						client.send(reading_file)
+						file.close()
+					
+					# # INFORM CLIENT THE RETURN STATUS OF EXECUTING THE COMMAND
+					# exit_status = execution.returncode
+			
+					# # INFORM CLIENT THE RETURN OUTPUT OF EXECUTING THE COMMAND
+					# if exit_status == 0 and execution.stdout != None:
+					# 	output = execution.stdout.decode("utf-8")
+					# elif exit_status != 0 and execution.stderr != None:
+					# 	output = execution.stderr.decode("utf-8")
+
+					# output_status = struct.pack('i i', exit_status, len(output))
+					# print(f"> stat={execution.returncode}, len={len(output)}")
+					# client.send( output_status )
+
+					# #! time.sleep( os.getpid() % 10 * 0.1) # AVOID CRASHES
+					# print(f"> out={output}")
+					# client.send(bytes(output, "utf-8"))
+				
+					# CHANGE BACK TO ORIGINAL DIRECTORY
 					os.chdir(server_dir)
 
-					# DELETE ANY TEMP DIRECTORIES
+					# todo - DELETE ANY TEMP DIRECTORIES
 					if input_dir:
 						print(f"{YEL} - DELETING FILES - {RST}")
 						shutil.rmtree( input_dir )

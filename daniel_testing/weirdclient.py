@@ -172,13 +172,12 @@ def execute_on_server(server_port_tuple, argument, requirements=None):
 	# If there are file requirements, add them as a string to arguments, seperated by ' Requirements: '.
 	# Additionally, these files will need to be sent to the server as well. Meaning the server
 	# must also know the size of the file in the case it exceeds 1024 bytes.
-	# n_req_files = 0
 	if requirements != None:
 		argument += ' Requirements:'
 		for requirement in requirements:
 			argument += ' '
 			argument += requirement
-			# n_req_files += 1
+			# argument += requirement.split('/')[-1]
 	
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	sd.connect( server_port_tuple )
@@ -194,13 +193,19 @@ def execute_on_server(server_port_tuple, argument, requirements=None):
 	if requirements != None:
 		for requirement in requirements:
 			print(f'{BLU}> sending', requirement, RST)
+
 			if '.o' in requirement: 
-				file = open(file_path(requirement), 'rb')
-				
+				file = open(requirement, 'rb')
 			else:
-				file = open(file_path(requirement), 'r')
+				file = open(requirement, 'r')
 			
+			# INFORM THE SERVER THE SIZE OF THE FILE TO RECEIVE
 			file_to_send = file.read()
+			file_size = os.path.getsize( requirement )
+			file_size_struct = struct.pack('i', file_size)
+
+			print(f'{BLU}> filesize = {file_size_struct}', RST)
+			sd.send( file_size_struct )
 
 			if '.o' in requirement:
 				sd.send( file_to_send )
@@ -208,12 +213,6 @@ def execute_on_server(server_port_tuple, argument, requirements=None):
 				sd.send(bytes(file_to_send, "utf-8"))
 			
 			file.close()
-
-			file_confirmation = sd.recv(1024)
-			file_confirmation = file_confirmation.decode("utf-8")
-			print('Should be receiving a file confirmation. Nothing else.')
-			print(CYN)
-			print(f"{CYN} {file_confirmation} {RST}")
 
 	return sd
 	
@@ -242,6 +241,7 @@ def get_cheapest_host(hosts, argument, requirements=None):
 
 		sd.send( frame )
 
+		# RECEIVE THE COST FOR THE COMMAND
 		reply = sd.recv(4)
 		reply = struct.unpack('i', reply)
 		cost = reply[0]
@@ -376,18 +376,50 @@ def main():
 				readable, writable, exceptional = select.select(inputs, [], inputs, 0)
 				# READ FROM SERVER, WHILST CONNECTED
 				for sd in readable:
-					reply = sd.recv(8)
-					
-					# DECRYPT HEADER
-					header = struct.unpack('i i', reply)
-					exit_status = header[0]
-					output_size = header[1]
-					print(f"< out_size:\n{output_size}")
-					print(f"< status:\n{exit_status}")
+					print(MAG, "----------------------------------------", RST)
+					print(MAG, f"from {sd.getpeername()}", RST)
+					mad_frame_server = sd.recv(12)	# Frame holds exit status, filename length, output lenght.
+					if mad_frame_server:
+						frame_data = struct.unpack('i i i', mad_frame_server)
+						exit_status = frame_data[0]
+						filename_len = frame_data[1]
+						output_size = frame_data[2]
+						# print(f"{CYN} {'Exit status:'} {frame_data[0]}")
+						print(f"< out_size:\n{output_size}")
+						print(f"< status:\n{exit_status}")
+						
+						# NOT RECEIVING OUTPUT FILE
+						if filename_len == 0:	# Non-compiling action executed.
+							output = sd.recv( output_size ).decode("utf-8")
+							# print(f"{CYN} {'Exit output:'} {output}")
+							print(f"< output:\n{output}")
 
-					reply = sd.recv(output_size)
-					output = reply.decode("utf-8")
-					print(f"< output:\n{output}")
+						# RECEIVING OUTPUT FILE
+						else:						# Compiling action executed.
+							outputname = sd.recv( filename_len ).decode("utf-8")
+							output = sd.recv( output_size )
+
+							print(f"{CYN} {'Output file name:'} {outputname}")
+
+							file = open(outputname, 'wb')
+							file.write(output)
+							file.close()
+						
+					#! --------------------------------
+					# reply = sd.recv(12)
+					
+					# # DECRYPT HEADER
+					# header = struct.unpack('i i i', reply)
+					# exit_status = header[0]
+					# output_len = header[1]
+					# output_size = header[2]
+					# print(f"< out_size:\n{output_size}")
+					# print(f"< status:\n{exit_status}")
+
+					# reply = sd.recv(output_size)
+					# output = reply.decode("utf-8")
+					# print(f"< output:\n{output}")
+					#! --------------------------------
 					
 					if exit_status != 0:
 						error_in_actionset = True
@@ -398,6 +430,30 @@ def main():
 					outputs_received += 1
 					if outputs_received >= total_actions:
 						still_waiting_for_outputs = False
+					
+				# for sd in readable:
+				# 	reply = sd.recv(8)
+					
+				# 	# DECRYPT HEADER
+				# 	header = struct.unpack('i i', reply)
+				# 	exit_status = header[0]
+				# 	output_size = header[1]
+				# 	print(f"< out_size:\n{output_size}")
+				# 	print(f"< status:\n{exit_status}")
+
+				# 	reply = sd.recv(output_size)
+				# 	output = reply.decode("utf-8")
+				# 	print(f"< output:\n{output}")
+					
+				# 	if exit_status != 0:
+				# 		error_in_actionset = True
+					
+				# 	sd.close()
+				# 	inputs.remove(sd)
+					
+				# 	outputs_received += 1
+				# 	if outputs_received >= total_actions:
+				# 		still_waiting_for_outputs = False
 				
 				# READ FROM SERVER, WHILST CONNECTED
 				for sd in exceptional:
