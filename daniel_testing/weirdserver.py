@@ -171,18 +171,17 @@ def main():
 					# SERVER DIRECTORY
 					server_dir = os.getcwd()		
 					
+					input_dir = tempfile.mkdtemp()	# TEMPORARY DIRECTORY FOR INPUT FILE(S)
+					output_dir = tempfile.mkdtemp()	# TEMPORARY DIRECTORY FOUR OUTPUT FILE(S)
+					os.chdir( input_dir )			# CHANGE WORKING DIRECTORY TO input_dir.
+
 					# THERE ARE REQUIREMENTS
 					if len(requirements) > 0:
-						# rfile = []						# REQUIREMENT FILES
-						input_dir = tempfile.mkdtemp()	# TEMPORARY DIRECTORY FOR INPUT FILE(S)
-						output_dir = tempfile.mkdtemp()	# TEMPORARY DIRECTORY FOUR OUTPUT FILE(S)
-						os.chdir( input_dir )			# CHANGE WORKING DIRECTORY TO input_dir.
 						print(f"{BLU}input_dir  = {input_dir}{RST}")
 						print(f"{BLU}output_dir = {output_dir}{RST}")
 						
 						# RECEIVE EACH REQUIRED FILE
 						for required_file in requirements:
-							# rfile = requirement.split('=')
 						
 							# GET THE SIZE OF THE FILE TO BE RECEIVED FROM THE CLIENT
 							reply = client.recv(4)
@@ -192,17 +191,13 @@ def main():
 							# todo - RECEIVE THE SIZE OF FILE TO RECV
 							
 							# READ BINARY FILE
-							if '.o' in required_file or '.' not in required_file:
-								# required_file = ../sample/okajndj
+							try:
 								file = open(required_file, "wb")
 								file_data = client.recv( file_to_recv_size )
-								# payload = client.recv( int(rfile[1]) )
-							
-							# ! READ ASCII TEXT FILE (I THINK)
-							else:
+							# READ TEXT FILE
+							except:
 								file = open(required_file, "w")
 								file_data = client.recv( file_to_recv_size ).decode("utf-8")
-								# payload = client.recv( int(rfile[1]) ).decode("utf-8")
 								
 							file.write( file_data )
 							file.close()
@@ -212,7 +207,7 @@ def main():
 								if arguments[i] == required_file:
 									arguments[i] = input_dir + '/' + required_file
 							
-						os.chdir( output_dir )			# CHANGE WORKING DIRECTORY TO output_dir.
+					os.chdir( output_dir )			# CHANGE WORKING DIRECTORY TO output_dir.
 
 					# EXECUTES COMMAND
 					# execution = subprocess.run(arguments, capture_output=True)
@@ -248,15 +243,21 @@ def main():
 						exit_status = execution.returncode
 
 						onlyfiles = [f for f in os.listdir( output_dir ) if os.path.isfile(os.path.join(output_dir, f))]
+						input_files = [f for f in os.listdir( input_dir ) if os.path.isfile(os.path.join(input_dir, f))]
 						print(f"{RED} {onlyfiles}",RST)
+						print(f"{GRN} {input_files}",RST)
 
 						files = os.listdir( output_dir )
 						filenamelength = len(files[0])
 						filesize = os.path.getsize(files[0])
 						
 						print(f"> stat={exit_status}, filesize={filesize}")
-						file = open(files[0], 'rb')
-						reading_file = file.read()
+						try:
+							file = open(files[0], 'rb')
+							reading_file = file.read()
+						except:
+							file = open(files[0], 'r')
+							reading_file = file.read()
 						
 						#########
 						print(f"> stat={exit_status}, filesize={filesize}")

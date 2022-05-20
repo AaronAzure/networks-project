@@ -194,22 +194,19 @@ def execute_on_server(server_port_tuple, argument, requirements=None):
 		for requirement in requirements:
 			print(f'{BLU}> sending', requirement, RST)
 
-			if '.o' in requirement or '.' not in requirement: 
-				file = open(requirement, 'rb')
-			else:
-				file = open(requirement, 'r')
-			
 			# INFORM THE SERVER THE SIZE OF THE FILE TO RECEIVE
-			file_to_send = file.read()
 			file_size = os.path.getsize( requirement )
 			file_size_struct = struct.pack('i', file_size)
-
 			print(f'{BLU}> filesize = {file_size_struct}', RST)
 			sd.send( file_size_struct )
 
-			if '.o' in requirement or '.' not in requirement:
+			try: 
+				file = open(requirement, 'rb')
+				file_to_send = file.read()
 				sd.send( file_to_send )
-			else:
+			except:
+				file = open(requirement, 'r')
+				file_to_send = file.read()
 				sd.send(bytes(file_to_send, "utf-8"))
 			
 			file.close()
@@ -222,13 +219,11 @@ def get_cheapest_host(hosts, argument, requirements=None):
 	Simultaneously get the cost of each remote host, 
 	and report back the remote host with the lowest cost
 	'''
-	n_req_files = 0
 	if requirements != None:
 		argument += ' Requirements: '
 		for requirement in requirements:
 			argument += requirement
 			argument += ' '
-			n_req_files += 1
 	
 	frame = struct.pack('i i', 1, len(argument))
 
@@ -349,7 +344,7 @@ def main():
 				# CHECK IF ACTION HAS REQUIREMENTS
 				requirements = None
 				if len(action) > 1: # HAS REQUIREMENT FILES
-					requirements = action[1].strip('requires').split()
+					requirements = action[1].split()[1:]
 
 				#* IF ACTION IS REMOTE, THEN CHECK COST FROM EACH REMOTE SERVER
 				if action[0].find('remote-') == 0:
