@@ -1,14 +1,10 @@
-# CITS3003 2022 Project, written by:
+# CITS3002 2022 Project, written by:
 # Aaron Wee		(22702446)
 # Daniel Ling		(22896002)
 # Muhammad Maaz Ahmed	(22436686)
 
-import os, getopt
-import subprocess
-import sys
-import select
-import socket
-import struct
+import select, shutil, socket, struct, subprocess, sys
+import getopt, os
 import time #! DELETE
 
 BOLD = "\033[1;30m"
@@ -27,8 +23,6 @@ DEFAULT_PORT = 12345
 VERBOSE = False
 rakefile  = 'Rakefile'	# Will be used to store rakefile.
 #################################################################################
-
-
 
 def fread(filename):
 	'''
@@ -62,8 +56,7 @@ def fread(filename):
 
 def extract_info(items):
 	'''
-	Extract important information from @param items into a dictionary (mapping) format
-	Function that converts all items in a list to a dictionary, which is then returned.	
+	Extract important information from @param items into a dictionary (mapping) format.	
 	'''
 	# Dictionary holding the port number, a 1D array of hosts and a 2D arrays of action sets.
 	item_dictionary = {'Port': '', 'Hosts': []}
@@ -118,10 +111,10 @@ def extract_info(items):
 
 def get_action_set_names(rdictionary):
 	'''
-	Return actionsets headers
+	Return actionsets headers.
 	'''
-	actionsets = []		# List holding all the action sets.
-	action_failure = False		# If True, then do not execute the next actionset.
+	actionsets = []			# ACTIONSET KEYS LIST.
+	action_failure = False		# IF TRUE, AN ACTION HAS FAILED. DO NOT EXECUTE NEXT ACTIONSET.
 	
 	for key in rdictionary:
 		if key.find('Action Set ') >= 0:
@@ -129,60 +122,22 @@ def get_action_set_names(rdictionary):
 
 	return actionsets
 
-
-#def file_path(filename):
-#	'''
-#	Function to find a file path in the working directory.
-#	'''
-#	for r, d, f in os.walk(os.getcwd()):
-#		if filename in f:
-#			return os.path.join(r, filename)
-#	return None
-
-	
-# def send_command_to_server(sd, argument, requirements=None):
-# 	'''
-# 	Function that performes actions that require the server. 
-# 	Receives the action and a list of the necessary files.
-# 	'''
-# 	# If there are file requirements, add them as a string to arguments, seperated by ' Requirements: '.
-# 	# Additionally, these files will need to be sent to the server as well. Meaning the server
-# 	# must also know the size of the file in the case it exceeds 1024 bytes.
-# 	n_req_files = 0
-# 	if requirements != None:
-# 		argument += ' Requirements: '
-# 		for requirement in requirements:
-# 			argument += requirement
-# 			argument += ' '
-# 			n_req_files += 1
-	
-# 	# INFORMS SERVER THE STRUCT
-# 	header = struct.pack('i i', 0, len(argument))
-# 	sd.send( header )
-	
-# 	# SENDS SERVER THE COMMAND/ACTION TO BE EXECUTED
-# 	sd.send(bytes(argument, "utf-8"))
-
-
 def execute_on_server(server_port_tuple, argument, requirements=None):
 	'''
 	Function that performes actions that require the server. 
 	Receives the action and a list of the necessary files.
 	'''
-	# If there are file requirements, add them as a string to arguments, seperated by ' Requirements: '.
-	# Additionally, these files will need to be sent to the server as well. Meaning the server
-	# must also know the size of the file in the case it exceeds 1024 bytes.
+	# ADDS FILE REQUIREMENTS TO arguments STRING, SEPARATED BY ' Requirements: '.
 	if requirements != None:
 		argument += ' Requirements:'
 		for requirement in requirements:
 			argument += ' '
 			argument += requirement
-			# argument += requirement.split('/')[-1]
 	
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	sd.connect( server_port_tuple )
 	
-	# INFORMS SERVER THE STRUCT
+	# INFORMS SERVER REGARDING THE PAYLOAD SIZE
 	header = struct.pack('i i', 0, len(argument))
 	sd.send( header )
 	
@@ -197,7 +152,7 @@ def execute_on_server(server_port_tuple, argument, requirements=None):
 			# INFORM THE SERVER THE SIZE OF THE FILE TO RECEIVE
 			file_size = os.path.getsize( requirement )
 			file_size_struct = struct.pack('i', file_size)
-			print(f'{BLU}> filesize = {file_size_struct}', RST)
+			print(f'{BLU}> filesize = {file_size}, sent as {file_size_struct}', RST)
 			sd.send( file_size_struct )
 
 			try: 
@@ -280,9 +235,7 @@ def read_option_flags():
 		print('usage: rakeserver.py -i <ip address> -p <port number> -r <rakefile>')
 		sys.exit(2)
 
-
 ####################################################################################################
-
 
 def main():
 	global HOST
@@ -360,7 +313,6 @@ def main():
 			
 				#* IF ACTION IS LOCAL, EXECUTE ON LOCAL SERVER
 				else:
-
 					print(f"{YEL} --- LOCAL EXECUTION --- {RST}")
 					sd = execute_on_server( ( 'localhost' , DEFAULT_PORT ) , action[0], requirements )
 					print(f"{BLU}> {action[0]} {requirements}{RST}")
@@ -374,27 +326,26 @@ def main():
 				for sd in readable:
 					print(MAG, "----------------------------------------", RST)
 					print(MAG, f"from {sd.getpeername()}", RST)
-					mad_frame_server = sd.recv(16)	# Frame holds exit status, filename length, output lenght.
+					
+					mad_frame_server = sd.recv(16)	# FRAME: EXIT STATUS, FILENAME LENGTH, OUTPUT SIZE, ERROR LENGTH
 					if mad_frame_server:
 						frame_data = struct.unpack('i i i i', mad_frame_server)
 						exit_status = frame_data[0]
 						filename_len = frame_data[1]
 						output_size = frame_data[2]
 						err_size = frame_data[3]
-						# print(f"{CYN} {'Exit status:'} {frame_data[0]}")
 						print(f"< status:\n{exit_status}")
 						
-						
 						# NOT RECEIVING OUTPUT FILE
-						if filename_len == 0:	# Non-compiling action executed.
+						if filename_len == 0:	
 							output = sd.recv( output_size ).decode("utf-8")
 							err = sd.recv( err_size).decode("utf-8")
-							# print(f"{CYN} {'Exit output:'} {output}")
+							
 							print(f"< output:\n{output}")
 							print(f"< err:\n{err}")
 
 						# RECEIVING OUTPUT FILE
-						else:						# Compiling action executed.
+						else:			
 							outputname = sd.recv( filename_len ).decode("utf-8")
 							output = sd.recv( output_size )
 							err = sd.recv( err_size).decode("utf-8")
@@ -405,22 +356,6 @@ def main():
 							file = open(outputname, 'wb')
 							file.write(output)
 							file.close()
-						
-					#! --------------------------------
-					# reply = sd.recv(12)
-					
-					# # DECRYPT HEADER
-					# header = struct.unpack('i i i', reply)
-					# exit_status = header[0]
-					# output_len = header[1]
-					# output_size = header[2]
-					# print(f"< out_size:\n{output_size}")
-					# print(f"< status:\n{exit_status}")
-
-					# reply = sd.recv(output_size)
-					# output = reply.decode("utf-8")
-					# print(f"< output:\n{output}")
-					#! --------------------------------
 					
 					if exit_status != 0:
 						error_in_actionset = True
@@ -432,31 +367,6 @@ def main():
 					if outputs_received >= total_actions:
 						still_waiting_for_outputs = False
 					
-				# for sd in readable:
-				# 	reply = sd.recv(8)
-					
-				# 	# DECRYPT HEADER
-				# 	header = struct.unpack('i i', reply)
-				# 	exit_status = header[0]
-				# 	output_size = header[1]
-				# 	print(f"< out_size:\n{output_size}")
-				# 	print(f"< status:\n{exit_status}")
-
-				# 	reply = sd.recv(output_size)
-				# 	output = reply.decode("utf-8")
-				# 	print(f"< output:\n{output}")
-					
-				# 	if exit_status != 0:
-				# 		error_in_actionset = True
-					
-				# 	sd.close()
-				# 	inputs.remove(sd)
-					
-				# 	outputs_received += 1
-				# 	if outputs_received >= total_actions:
-				# 		still_waiting_for_outputs = False
-				
-				# READ FROM SERVER, WHILST CONNECTED
 				for sd in exceptional:
 					error_in_actionset = True
 					sd.close()
@@ -466,78 +376,10 @@ def main():
 			print(f"{RED}error detected in actionset - halting subsequent actionsets{RST}")
 			break
 		
-
 	if VERBOSE:
 		print(f"{YEL}----------------------------------{RST}")
 		print(f"{YEL}  EXECUTION TIME = {(time.time() - start_time):.2f}s{RST}")
 		print(f"{YEL}----------------------------------{RST}")
 		
-
-
 if __name__ == "__main__":
 	main()
-
-# NOTE: SHOULD WORK WITH `python3 client-p.py`
-
-# for action in rake_dict[ actionset ]:
-			
-# 	# * IF ACTION IS REMOTE, THEN CHECK COST FROM EACH SERVER
-# 	if action[0].find('remote-') == 0:
-
-# 		cheapest_host = get_cheapest_host( hosts ) # cost simulateonusly
-
-# 		# EXECUTE ON CHEAPEST REMOTE HOST
-# 		print(f"{YEL} --- REMOTE EXECUTION --- {RST}")
-# 		print(f"executing order on {cheapest_host}")
-# 		execute_on_server( cheapest_host , action[0].split("remote-")[1])
-
-
-# for actionset in actionset_names:
-	# processes = []
-	# if error_in_actionset:
-	# 	print("error detected in actionset - halting subsequent actionsets")
-	# 	break
-
-	# for action in rake_dict[ actionset ]:
-	# 	pid = os.fork()
-	# 	# CHILD PROCESS
-	# 	if pid == 0:
-	# 		#* IF ACTION IS REMOTE, THEN CHECK COST FROM EACH SERVER
-	# 		if action[0].find('remote-') == 0:
-	# 			argument = action[0].split("remote-")[1]
-	# 			requirements = None
-	# 			# HAS REQUIREMENT FILES
-	# 			if len(action) > 1:
-	# 				requirements = action[1].strip('requires').split()
-
-	# 			cheapest_host = get_cheapest_host( hosts , argument ) # cost simulateonusly
-
-	# 			# EXECUTE ON CHEAPEST REMOTE HOST
-	# 			print(f"{YEL} --- REMOTE EXECUTION --- {RST}")
-		
-	# 			exit_status = execute_on_server( cheapest_host , argument , requirements )
-	# 		#* ELSE, EXECUTE ON LOCAL SERVER
-	# 		else:
-		
-	# 			requirements = None
-	# 			# HAS REQUIREMENT FILES
-	# 			if len(action) > 1:
-	# 				requirements = action[1].strip('requires').split()
-
-	# 			print(f"{YEL} --- LOCAL EXECUTION --- {RST}")
-		
-	# 			exit_status = execute_on_server( ('localhost' , DEFAULT_PORT) , action[0], requirements )
-	
-	# 		sys.exit(exit_status)
-	# 	# PARENT PROCESS
-	# 	else:
-	# 		processes.append(pid)
-
-	# # WAIT TILL ALL ACTIONS HAVE BEEN EXECUTED
-	# while processes:
-	# 	pid, exit_code = os.waitpid(-1, 0)
-	# 	if pid != 0:
-	# 		if pid in processes:
-	# 			processes.remove(pid)
-	# 			if (exit_code >> 8) != 0:
-	# 				error_in_actionset = True
