@@ -137,15 +137,17 @@ def main():
 		print(BOLD + " Accepted new client on sd=" + str(SOCKET_NUM) + RST)
 		
 		while True: 
-			data = client.recv(8)     #! BLOCKING
+			data = client.recv(12)     #! BLOCKING
 			if data != None:
 				# DECRYPT HEADER
-				header = struct.unpack('i i', data)
+				header = struct.unpack('i i i', data)
 				asking_for_cost = bool(header[0])
 				command_length = header[1]
+				n_required_files = header[2]
+				
 
 				# CLIENT ASKING FOR QUOTE/COST FOR EXECUTING COMMAND
-				if asking_for_cost:
+				if asking_for_cost != 0:
 					quote = cost_for_execution()
 					cost_response = struct.pack('i', quote)
 					print("> cost =", quote)
@@ -162,18 +164,18 @@ def main():
 				# CHILD PROCESS DEALS WITH CURRENT ACTION
 				if pid == 0:
 					print(f"{BLU} - payload: {payload} - {RST}")
-					payload = payload.split(' Requirements:')
-					arguments = payload[0].split()	# STORES ARGUMENTS AS A LIST.
+					# payload = payload.split(' Requirements:')
+					# arguments = payload[0].split()	# STORES ARGUMENTS AS A LIST.
 					# arguments = convert_filepath_to_local( arguments )
 					requirements = []		# STORES INPUT FILE(S) AS A LIST.
 					latest_update = None	# STORES TIME OF LATEST UPDATED FILE.
 
-					if len(payload) == 2:
-						requirements = payload[1].split()
+					# if len(payload) == 2:
+					# 	requirements = payload[1].split()
 						# requirements = convert_filepath_to_local( requirements )
 
-					if VERBOSE:
-						print('< arguments:', arguments, '\n< requirements:', requirements)
+					# if VERBOSE:
+					# 	print('< arguments:', arguments, '\n< requirements:', requirements)
 					
 					# SERVER DIRECTORY
 					server_dir = os.getcwd()	# SERVER DIRECTORY	
@@ -181,16 +183,27 @@ def main():
 					os.chdir(temp_dir)
 
 					# THERE ARE REQUIREMENTS
-					if len(requirements) > 0:
+					if n_required_files > 0:
 						# print(f"{BLU} - TEMPORARY DIRECTORY: {temp_dir} - {RST}")
 					
 						# RECEIVE EACH REQUIRED FILE
-						for required_file in requirements:
-						
+						for i in range(n_required_files):
+						# for required_file in requirements:
+							data = client.recv(12)     #! BLOCKING
+
+							# DECRYPT HEADER
+							header = struct.unpack('i i i', data)
+							# asking_for_cost = bool(header[0])
+							filename_length = header[1]
+							file_to_recv_size = header[2]
+
+							# GET THE NAME OF THE FILE TO BE RECEIVED FROM THE CLIENT
+							required_file = client.recv(filename_length).decode("utf-8")
+
 							# GET THE SIZE OF THE FILE TO BE RECEIVED FROM THE CLIENT
 							reply = client.recv(4)
-							data_size = struct.unpack('i', reply)
-							file_to_recv_size = data_size[0]
+							# data_size = struct.unpack('i', reply)
+							# file_to_recv_size = data_size[0]
 
 							# READ BINARY FILE
 							try:
@@ -209,7 +222,6 @@ def main():
 
 							
 							# STORES MODIFIED TIME OF FILE IF IT EXCEEDS latest_update.
-							os.utime(required_file, tup)
 							if latest_update == None or latest_update < os.stat(required_file).st_mtime:
 								latest_update = os.stat(required_file).st_mtime
 							# if latest_update == None or latest_update < os.path.getmtime(required_file):
@@ -217,8 +229,7 @@ def main():
 
 
 					# EXECUTES COMMAND
-					# time.sleep(1)
-					execution = subprocess.run(' '.join(arguments), capture_output=True, shell=True)
+					execution = subprocess.run(payload, capture_output=True, shell=True)
 
 					# INFORM CLIENT OF ANY OUTPUT FILES.
 					output_file = find_output_file(temp_dir, latest_update)

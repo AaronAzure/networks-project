@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/time.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -15,24 +16,24 @@
 #include <getopt.h>
 #include <time.h>
 
-#define     MAX_FILES_IN_DIRECTORY      128
-#define     MAX_FILES_TO_PROCESS        128
-#define     MAX_HOSTS                   32
-#define     MAX_ACTIONS                 32
-#define     MAX_ACTIONSETS              32
-#define     MAX_REQUIREMENTS            32
-#define     BUFFER_SIZE                 2048
-#define     MAX_FILE_NAME               64
-#define     MAX_LINE_LENGTH             2048
+#define     MAX_FILES_IN_DIRECTORY		128
+#define     MAX_FILES_TO_PROCESS		128
+#define     MAX_HOSTS					32
+#define     MAX_ACTIONS					32
+#define     MAX_ACTIONSETS				32
+#define     MAX_REQUIREMENTS			32
+#define     BUFFER_SIZE					2048
+#define     MAX_FILE_NAME				64
+#define     MAX_LINE_LENGTH				2048
 
-#define     RED                         "\033[0;31m"
-#define     GRN                         "\033[0;32m"
-#define     YEL                         "\033[0;33m"
-#define     BLU                         "\033[0;34m"
-#define     MAG                         "\033[0;35m"
-#define     CYN                         "\033[0;36m"
-#define     WHT                         "\033[0;37m"
-#define     RESET                       "\033[0m"
+#define     RED							"\033[0;31m"
+#define     GRN							"\033[0;32m"
+#define     YEL							"\033[0;33m"
+#define     BLU							"\033[0;34m"
+#define     MAG							"\033[0;35m"
+#define     CYN							"\033[0;36m"
+#define     WHT							"\033[0;37m"
+#define     RST							"\033[0m"
 
 
 // -------------------------------------------------------------------
@@ -88,6 +89,21 @@ int     default_port;
 int     verbose = false;
 
 Rackfile rackfile;
+
+typedef struct HeaderToServer
+{
+    int	asking_for_cost;
+    int	message_length;	// COMMAND OR REQUIRED FILENAME LENGTH
+    int	n_required_files;
+} HeaderToServer;
+
+typedef struct HeaderFromServer
+{
+    int	exit_status;
+    int	filename_len;	// FILENAME LENGTH OF CREATED/MODIFIED FILE
+    int	output_size;	// LENGTH OF OUTPUT (STDOUT) OR CREATED/MODIFIED FILE SIZE
+    int	error_size;		// LENGTH OF OUTPUT (STDERR)
+} HeaderFromServer;
 
 
 // -------------------------------------------------------------------
@@ -231,6 +247,7 @@ void debug_rackfile()
  */
 void parse_file(char *filename)
 {
+
     if (verbose)
         printf("-- parsing %s\n\n", filename);
 
@@ -382,44 +399,19 @@ void parse_file(char *filename)
     }
 }
 
-int write_file_to_server(int sd, char message[])
+char *strcat_realloc(char *string1, const char *string2)
 {
-	if (verbose)
-    	printf("%s --> %s\n%s", GRN, message, RESET);
+    int string1_len = strlen(string1);
+    int string2_len = strlen(string2);
+    int combined_len = string1_len + string2_len + 1;	// '\0' character byte
 
-    if (write(sd, message, strlen(message)) < 0) 
-        return EXIT_FAILURE;
+    string1 = realloc(string1, combined_len);
 
-	// CLIENT RECEIVES FROM SERVER, THE STATUS AND OUTPUT OF EXECUTING ACTION
-	char response[2048];
-    read(sd, response , 2048);
-	
-	if (verbose)
-		printf("%s|%s|%s\n", MAG, response, RESET);
+    memcpy(string1 + string1_len, string2, string2_len + 1);
 
-	int first_line_len = char_at(response, '\n');
-	char *status_str = (char *) malloc(first_line_len);
-	strncpy(status_str, response, first_line_len);
-	int status = atoi(status_str);
-		
-	if (verbose)
-		printf("stat = |%i|\n", status);
-
-	int output_len = strlen(response) - first_line_len;
-	char *output = (char *) malloc( output_len );
-	strncpy(output, response + first_line_len, output_len);
-	
-	// REPORT OUTPUT TO SCREEN
-	if (status == 0)
-		printf("%s\n", output); 
-	else
-		printf("error: %s\n", output); 
-
-	shutdown(sd, SHUT_RDWR);
-    close(sd);
-
-    return status;
+    return string1;
 }
+
 
 int establish_socket(char *host, int port)
 {
@@ -458,86 +450,321 @@ int establish_socket(char *host, int port)
 	return sd;
 }
 
-/**
- * @brief Return the cost of executing a command on all remote server.
- * 
- * @return int the index of the cheapest host (remote server).
- */
-int get_cheapest_host()
+
+// '''
+// Function that performes actions that require the server. 
+// Receives the action and a list of the necessary files.
+// '''
+void write_file_to_server(int sd, Action action)
 {
-    int sds[rackfile.nHosts];
-    fd_set read_fd_set;
-	FD_ZERO(&read_fd_set);
-
-    // INITIALISE ALL REMOTE SOCKETS
-	for (int h=0 ; h<rackfile.nHosts ; h++)
-    {
-		int sd = establish_socket(rackfile.hosts[h].host, rackfile.hosts[h].port);
-		sds[h] = sd;
-		FD_SET(sd, &read_fd_set);
-		if (write(sd, "cost?", strlen("cost?")) < 0) 
-			return -1;
-    }
-
-	struct timeval timeout;
-	timeout.tv_sec  = 10;             // wait up to 10 seconds
-	timeout.tv_usec =  0;
-
-    int cost_received = 0;
-    int lowest_cost = -1;
-    int cheapest_host = -1;
-
-	bool keep_going = true;
-    while (keep_going)
-    {
-		// read_fd_set = current_fd_set;
-
-        // init fd_set
-        for (int h=0 ; h<rackfile.nHosts ; h++)
-        {
-            FD_SET(sds[h], &read_fd_set);
-        }
-
-		// READ FILE DESCRIPTORS
-		if (select(FD_SETSIZE, &read_fd_set, NULL, NULL, &timeout) < 0) 
-		{
-            exit(EXIT_FAILURE);
-        }
-		
-        for (int h=0 ; h<rackfile.nHosts ; h++)
-        {
-            if (FD_ISSET(sds[h], &read_fd_set)) 
-            {
-				char server_cost[2048];
-                read(sds[h], server_cost , 2048);
-				
-				int reply_cost = atoi(server_cost);
-				// REMEMBER CHEAPEST HOST TO RUN COMMAND/ACTION
-				if (reply_cost < lowest_cost || lowest_cost == -1)
-				{
-					lowest_cost = reply_cost;
-					cheapest_host = h;
-				}
-
-				cost_received++;
-				if (cost_received >= rackfile.nHosts)
-					keep_going = false;
-				FD_CLR(sds[h], &read_fd_set);
-			}
-		}
+	//! --------------------------------------------------
+	// def execute_on_server(server_port_tuple, argument, requirements=None):
+	// # ADDS FILE REQUIREMENTS TO message STRING, SEPARATED BY ' Requirements: '.
+	// char *message = (char *)calloc(strlen(argument) + 1, sizeof(char));
+	
+	// INFORMS SERVER REGARDING THE PAYLOAD SIZE
+	HeaderToServer header;
+	
+	header.asking_for_cost = 0;
+	header.message_length = strlen(action.action);
+	header.n_required_files = action.nRequiredFiles;
+	
+	// printf("%spreparing to write to %s\n", BLU, RST);
+	if (write(sd, &header, sizeof(header)) < 0) 
+	{
+		perror("header:");
+        exit(EXIT_FAILURE);
 	}
 	
-	/* Last step: Close all the sockets */
-	for (int h=0 ; h<rackfile.nHosts ; h++)
+	// SENDS SERVER THE COMMAND/ACTION TO BE EXECUTED
+	if (write(sd, action.action, strlen(action.action)) < 0) 
 	{
-		if (sds[h] >= 0) 
-		{
-			shutdown(sds[h], SHUT_RDWR);
-			close(sds[h]);
-		}
+		perror("action:");
+        exit(EXIT_FAILURE);
 	}
 
+	// SEND FILES TO SERVER
+	if (action.nRequiredFiles > 0)
+	{
+		for (int i=0 ; i<action.nRequiredFiles ; i++)
+		{
+			struct stat sb;
+
+			if (stat(action.requiredFiles[i], &sb) == -1) 
+			{
+				perror("stat");
+				exit(EXIT_FAILURE);
+			}
+
+			printf("%s> sending %s%s\n", BLU, action.requiredFiles[i], RST);
+
+			// INFORM THE SERVER THE SIZE OF THE FILE TO RECEIVE
+			HeaderToServer req_file_header;
+			req_file_header.asking_for_cost = 0;
+			req_file_header.message_length = strlen(action.requiredFiles[i]);
+			req_file_header.n_required_files = (int)sb.st_size;
+
+			printf("%s> filesize = %i%s\n", BLU, (int) sb.st_size, RST);
+			if (write(sd, &req_file_header, sizeof(req_file_header)) < 0) 
+			{
+				perror("filsize:");
+        		exit(EXIT_FAILURE);
+			}
+			
+			// SEND FILE NAME
+			printf("%s> sending %s%s\n", BLU, action.requiredFiles[i], RST);
+			// printf("%s> filename = %i%s\n", BLU, (int) sb.st_size, RST);
+			if (write(sd, action.requiredFiles[i], sizeof(action.requiredFiles[i])) < 0) 
+        		exit(EXIT_FAILURE);
+				
+			
+			FILE  *fp = fopen(action.requiredFiles[i], "rb");
+			char file_content[req_file_header.n_required_files];
+			fgets(file_content, sizeof(file_content), fp);
+			printf("%s> sending file!!!%s\n", BLU, RST);
+			if (write(sd, file_content, strlen(file_content)) < 0) 
+			{
+				perror("sending file:");
+				exit(EXIT_FAILURE);
+			}
+			
+			printf("%s> SENT!!!%s\n", BLU, RST);
+			fclose(fp);
+		}   
+	}
+}
+
+
+/**
+ * @brief 	Return the index to the cheapest host for executing @param argument,
+ *			quoting on all remote server(s).
+ * 
+ * @param 	argument the argument to executed
+ * @return 	int index to the cheapest host
+ */
+int get_cheapest_host(char *argument)
+{
+	int cheapest_host = 0;
+	int lowest_cost = -1;
+
+	HeaderToServer header;
+	header.asking_for_cost = 1;
+	header.message_length = strlen(argument);
+	header.n_required_files = 0;
+
+	for (int h=0 ; h<rackfile.nHosts ; h++)
+	{
+		int sd = establish_socket(rackfile.hosts[h].host, rackfile.hosts[h].port);
+		
+		if (write(sd, &header, sizeof(header)) < 0) 
+			return -1;
+		
+		HeaderToServer reply;
+		read(sd, &reply , 12);
+		int cost = reply.asking_for_cost;
+		
+		shutdown(sd, SHUT_RDWR);
+		close(sd);
+		
+		// REMEMBER THE REMOTE HOST RETURNING THE LOWEST COST TO RUN THE COMMAND
+		if (cost < lowest_cost || lowest_cost == -1)
+		{
+			lowest_cost = cost;
+			cheapest_host = h;
+		}
+	}
 	return cheapest_host;
+}
+
+//! delete
+void none()
+{
+    // int sds[rackfile.nHosts];
+    // fd_set read_fd_set;
+	// FD_ZERO(&read_fd_set);
+
+    // // INITIALISE ALL REMOTE SOCKETS
+	// for (int h=0 ; h<rackfile.nHosts ; h++)
+    // {
+	// 	int sd = establish_socket(rackfile.hosts[h].host, rackfile.hosts[h].port);
+	// 	sds[h] = sd;
+	// 	FD_SET(sd, &read_fd_set);
+	// 	if (write(sd, "cost?", strlen("cost?")) < 0) 
+	// 		return -1;
+    // }
+
+	// struct timeval timeout;
+	// timeout.tv_sec  = 10;             // wait up to 10 seconds
+	// timeout.tv_usec =  0;
+
+    // int cost_received = 0;
+    // int lowest_cost = -1;
+    // int cheapest_host = -1;
+
+	// bool keep_going = true;
+    // while (keep_going)
+    // {
+    //     // init fd_set
+    //     for (int h=0 ; h<rackfile.nHosts ; h++)
+    //     {
+    //         FD_SET(sds[h], &read_fd_set);
+    //     }
+
+	// 	// READ FILE DESCRIPTORS
+	// 	// if (select(FD_SETSIZE, &read_fd_set, NULL, NULL, &timeout) < 0) 
+	// 	if (select(FD_SETSIZE, &read_fd_set, NULL, NULL, NULL) < 0) 
+	// 	{
+    //         exit(EXIT_FAILURE);
+    //     }
+		
+    //     for (int h=0 ; h<rackfile.nHosts ; h++)
+    //     {
+    //         if (FD_ISSET(sds[h], &read_fd_set)) 
+    //         {
+	// 			char server_cost[2048];
+    //             read(sds[h], server_cost , 2048);
+				
+	// 			int reply_cost = atoi(server_cost);
+				
+	// 			// REMEMBER CHEAPEST HOST TO RUN COMMAND/ACTION
+	// 			if (reply_cost < lowest_cost || lowest_cost == -1)
+	// 			{
+	// 				lowest_cost = reply_cost;
+	// 				cheapest_host = h;
+	// 			}
+
+	// 			cost_received++;
+	// 			if (cost_received >= rackfile.nHosts)
+	// 				keep_going = false;
+	// 			FD_CLR(sds[h], &read_fd_set);
+	// 		}
+	// 	}
+	// }
+	
+	// /* Last step: Close all the sockets */
+	// for (int h=0 ; h<rackfile.nHosts ; h++)
+	// {
+	// 	if (sds[h] >= 0) 
+	// 	{
+	// 		shutdown(sds[h], SHUT_RDWR);
+	// 		close(sds[h]);
+	// 	}
+	// }
+
+	// return cheapest_host;
+}
+//! delete
+void non_blocking()
+{
+	// int max_connections	= rackfile.actionSets[i].nActions + 1;
+	// int n_connected 	= 0;
+    // int sds[max_connections];	// MAX NO. OF ACTION IN ACTIONSET + NO. OF SERVERS (DEFAULT + REMOTE)
+	
+    // fd_set read_fd_set;
+	// FD_ZERO(&read_fd_set);
+
+    // // INITIALISE ALL REMOTE SOCKETS
+	// for (int i=0 ; i<max_connections ; i++)
+	// 	sds[h] = -1;
+	// // FD_SET(sd, &read_fd_set);
+	// // if (write(sd, "cost?", strlen("cost?")) < 0) 
+
+	// struct timeval timeout;
+	// timeout.tv_sec  = 0;             // wait up to 0.5 seconds
+	// timeout.tv_usec = 5000;
+
+	// bool keep_going = true;
+    // while (keep_going)
+    // {
+	// 	FD_ZERO(&read_fd_set);
+
+    //     // re-init fd_set
+    //     for (int i=0 ; i<max_connections ; i++)
+    //     {
+	// 		// if (sds[i] >= 0 && FD_ISSET(i, &read_fd_set))
+	// 		if (sds[i] >= 0)
+    //         	FD_SET(i, &read_fd_set);
+    //     }
+
+	// 	// READ FILE DESCRIPTORS
+	// 	// if (select(FD_SETSIZE, &read_fd_set, NULL, NULL, NULL) < 0) 
+	// 	if (select(FD_SETSIZE, &read_fd_set, NULL, NULL, &timeout) > 0) 
+	// 	{
+	// 		for (int i=0 ; i<max_connections ; i++)
+	// 		{
+	// 			if (FD_ISSET(sds[i], &read_fd_set)) 
+	// 			{
+	// 				char server_cost[2048];
+	// 				read(sds[i], server_cost , 2048);
+					
+	// 				int reply_cost = atoi(server_cost);
+					
+	// 				// REMEMBER CHEAPEST HOST TO RUN COMMAND/ACTION
+	// 				if (reply_cost < lowest_cost || lowest_cost == -1)
+	// 				{
+	// 					lowest_cost = reply_cost;
+	// 					cheapest_host = i;
+	// 				}
+
+	// 				cost_received++;
+	// 				if (cost_received >= rackfile.nHosts)
+	// 					keep_going = false;
+	// 				FD_CLR(sds[i], &read_fd_set);
+	// 			}
+	// 		}
+	// 	}
+	// }
+	
+	// /* Last step: Close all the sockets */
+	// for (int i=0 ; i<max_connections ; i++)
+	// {
+	// 	if (sds[i] >= 0) 
+	// 	{
+	// 		shutdown(sds[i], SHUT_RDWR);
+	// 		close(sds[i]);
+	// 	}
+	// }
+
+	// return cheapest_host;
+}
+//! delete
+void read_sockets(int *n_connected, int max_connections)
+{
+	// for (int i=0 ; i<max_connections ; i++)
+	// {
+	// 	if (sds[i] >= 0 && FD_ISSET(sds[i], &read_fd_set)) 
+	// 	{
+	// 		char server_cost[2048];
+	// 		read(sds[i], server_cost , 2048);
+			
+	// 		int reply_cost = atoi(server_cost);
+			
+	// 		// REMEMBER CHEAPEST HOST TO RUN COMMAND/ACTION
+	// 		// if (reply_cost < lowest_cost || lowest_cost == -1)
+	// 		// {
+	// 		// 	lowest_cost = reply_cost;
+	// 		// 	cheapest_host = i;
+	// 		// }
+
+	// 		// cost_received++;
+	// 		// if (cost_received >= rackfile.nHosts)
+	// 		// 	keep_going = false;
+	// 		FD_CLR(sds[i], &read_fd_set);
+	// 	}
+	// }
+}
+
+void add_socket_connection(int *sds, int max_connections, int sd)
+{
+	for (int i=0 ; i<max_connections ; i++)
+	{
+		// NOT CONNECTED
+		if (sds[i] < 0)
+		{
+			sds[i] = sd;
+			break;
+		}
+	}
 }
 
 
@@ -545,6 +772,7 @@ int main(int argc, char *argv[])
 {
     int opt;
     strcpy(host, "localhost");
+    strcpy(rackfile_name, "Rakefile");
     while ((opt = getopt(argc, argv, "vhi:p:r:")) != -1) 
     {
         switch (opt) 
@@ -565,7 +793,7 @@ int main(int argc, char *argv[])
             case 'p':
                 port_num = atoi(optarg);
                 break;
-            // VERBOSE - DEBUGGING
+            // verbose - DEBUGGING
             case 'v':
                 verbose = true;
                 break;
@@ -582,62 +810,270 @@ int main(int argc, char *argv[])
     {
         printf(YEL);
         debug_rackfile();
-        printf(RESET);
+        printf(RST);
     }
 
+	// int socket_desc = establish_socket("localhost", 12345);
+	
+	// HeaderToServer header;
+	// header.asking_for_cost = 1;
+	// header.message_length = 15;
+	// printf("-- %lu\n", sizeof(struct HeaderToServer));
+	
+	// if (write(socket_desc, &header, sizeof(header)) < 0) 
+	// 	return -1;
+	// else
+	// {
+	// 	HeaderToServer response;
+	// 	read(socket_desc, &response , 8);
+	// 	printf("-- (%i, %i)\n", response.asking_for_cost, response.message_length);
+	// 	printf("-- %lu\n", sizeof(response));
+	// 	close(socket_desc);
 
+	// }
+	
 	bool error_in_actionset = false;
+	struct timeval timeout;
+	timeout.tv_sec  = 1;             // wait up to 0.5 seconds
+	timeout.tv_usec = 0;
+
 	for (int i=0 ; i<rackfile.nActionSets && !error_in_actionset; i++)
 	{
-		for (int j=0 ; j<rackfile.actionSets[i].nActions && !error_in_actionset; j++)
-		{
-			int cheapest_host;
-			if (rackfile.actionSets[i].actions[j].isLocal)
-				cheapest_host = get_cheapest_host();
-			switch ( fork() )
-			{
-				//* ERROR
-				case -1:
-					exit(EXIT_FAILURE);
-					break;
-				//* CHILD PROCESS
-				case 0:
-					// * IF ACTION IS REMOTE, THEN CHECK COST FROM EACH SERVER
-					if (rackfile.actionSets[i].actions[j].isLocal)
-					{
+		int action_n = 0;
+		int outputs_received = 0;
+		int total_actions = rackfile.actionSets[i].nActions;
+		bool still_waiting_for_outputs = true;
 
-						// EXECUTE ON CHEAPEST REMOTE HOST
-						printf("%s --- REMOTE EXECUTION --- \n%s", YEL, RESET);
-						int sd = establish_socket(rackfile.hosts[cheapest_host].host, rackfile.hosts[cheapest_host].port);
-						int return_val = write_file_to_server(sd, rackfile.actionSets[i].actions[j].action);
-						// printf("%sret - %i\n%s", YEL, return_val, RESET);
-						exit(return_val);
-					}
-					else
-					{
-						printf("%s --- LOCAL EXECUTION --- \n%s", YEL, RESET);
-						int sd = establish_socket("localhost", default_port);
-						int return_val = write_file_to_server(sd, rackfile.actionSets[i].actions[j].action);
-						// printf("%sret - %i\n%s", YEL, return_val, RESET);
-						exit(return_val);
-					}
-					break;
-				//* PARENT PROCESS
-				default:
-					break;
-			}
+		fd_set read_fd_set;
+		int max_connections	= rackfile.actionSets[i].nActions + 1;
+		int n_connected 	= 0;
+		int sds[max_connections];	// MAX NO. OF ACTION IN ACTIONSET + NO. OF SERVERS (DEFAULT + REMOTE)
+
+		for (int c=0 ; c<max_connections ; c++)
+			sds[c] = -1;
+
+		if (verbose)
+		{
+			printf("%s --------------------------------------------------------------------------------%s\n", GRN, RST);
+			// printf('starting', actionset);
+			// printf(f"{GRN}{rake_dict[actionset]}{RST}");
 		}
 
-		pid_t child;
-		int status;
-		// WAIT FOR ALL CHILD PROCESS TO EXIT
-		while ((child = wait(&status)) > 0)
-			if (WEXITSTATUS(status) != 0)
-				error_in_actionset = true;
+		while (still_waiting_for_outputs)
+		{
+			FD_ZERO(&read_fd_set);
+			for (int c=0 ; c<max_connections ; c++) 
+				if (sds[c] >= 0) 
+					FD_SET(sds[c], &read_fd_set);
+
+			if (action_n < total_actions)
+			{
+				// char *action = &rackfile.actionSets[i].actions[j].action;
+				Action *current_action = &(rackfile.actionSets[i].actions[action_n]);
+
+				if (verbose)
+					printf("%srunning %s%s\n", BLU, current_action->action, RST);
+				
+				// CHECK IF ACTION HAS REQUIREMENTS
+
+				// if (action.nRequiredFiles > 1) // HAS REQUIREMENT FILES
+					// requirements = action[1].split()[1:]
+
+				//* IF ACTION IS REMOTE, THEN CHECK COST FROM EACH REMOTE SERVER
+				if (current_action->isLocal)
+				{
+					int cheapest_host;
+					cheapest_host = get_cheapest_host( current_action->action ); // cost simulateonusly
+
+					// EXECUTE ON CHEAPEST REMOTE HOST
+					printf("%s --- REMOTE EXECUTION --- \n%s", YEL, RST);
+					// todo sd = execute_on_server( hosts[cheapest_host] , argument , requirements )
+					int sd = establish_socket(rackfile.hosts[cheapest_host].host, rackfile.hosts[cheapest_host].port);
+					write_file_to_server(sd, *current_action);
+					// print(f"{BLU}> {argument} {requirements}{RST}")
+					n_connected++;
+					add_socket_connection(sds, max_connections, sd);
+				}
+			
+				//  IF ACTION IS LOCAL, EXECUTE ON LOCAL SERVER
+				else
+				{
+					printf("%s --- LOCAL EXECUTION --- \n%s", YEL, RST);
+					// todo sd = execute_on_server( ( 'localhost' , DEFAULT_PORT ) , *current_action[0], requirements )
+					int sd = establish_socket("localhost", default_port);
+					write_file_to_server(sd, *current_action);
+					// print(f"{BLU}> {current_action[0]} {requirements}{RST}")
+					n_connected++;
+					add_socket_connection(sds, max_connections, sd);
+				}
+
+				action_n++;
+			}
+			
+			if (n_connected > 0)
+			{
+				int nready = select(FD_SETSIZE, &read_fd_set, NULL, NULL, &timeout);
+				// printf(" n_connected=%i\n",n_connected);
+				if (nready > 0) 
+				{
+					for (int j=0 ; j<max_connections ; j++)
+					{
+						// printf("%d ")
+						if (sds[j] >= 0 && FD_ISSET(sds[j], &read_fd_set)) 
+						{
+							printf(" %s----------------------------------------%s\n", MAG, RST);
+							// print(MAG, f"from {sd.getpeername()}", RST)
+							
+							// 	DECRYPT HEADER
+							HeaderFromServer response;
+							read(sds[j], &response , sizeof(HeaderFromServer));
+							int exit_status 	= response.exit_status;
+							int filename_len 	= response.filename_len;
+							int output_size 	= response.output_size;
+							int error_size 		= response.error_size;
+
+							printf("< status:\n%d\n", exit_status);
+							
+							// NOT RECEIVING OUTPUT FILE
+							if (filename_len == 0)
+							{
+								// output = sd.recv( output_size ).decode("utf-8")
+								char output[ output_size ];
+								read(sds[j], &output , output_size);
+								// err = sd.recv( err_size).decode("utf-8")
+								char error[ error_size ];
+								read(sds[j], &error , error_size);
+								
+								if (strcmp(output, "") != 0)
+									printf("< output:\n%s\n", output);
+								else
+									printf("< output:\nNone\n");
+
+								if (strcmp(error, "") != 0)
+									printf("< err:\n%s\n", error);
+								else
+									printf("< err:\nNone\n");
+							}
+							// RECEIVING OUTPUT FILE
+							else
+							{
+								char outputname[ filename_len ];
+								read(sds[j], &outputname , filename_len);
+
+								char output[ output_size ];
+								read(sds[j], &output , output_size);
+
+								char error[ error_size ];
+								read(sds[j], &error , error_size);
+								
+								printf("< output file name:\n%s\n", outputname);
+								if (strcmp(error, "") != 0)
+									printf("< err:\n%s\n", error);
+								else
+									printf("< err:\nNone\n");
+
+								// file = open(outputname, 'wb')
+								FILE  *fp = fopen(outputname, "wb");
+								fwrite(output, sizeof(output), 1, fp);
+								
+								fclose(fp);
+							}
+							
+							// ACTION FAILED
+							if (exit_status != 0)
+								error_in_actionset = true;
+							
+							shutdown(sds[j], SHUT_RDWR);
+							close(sds[j]);
+							sds[j] = -1;
+							FD_CLR(sds[j], &read_fd_set);
+							
+							n_connected--;
+							
+							outputs_received++;
+							if (outputs_received >= total_actions)
+								still_waiting_for_outputs = false;
+						}
+						// READ FROM SERVER, WHILST CONNECTED
+						// for sd in exceptional:
+							// error_in_actionset = true;
+							// still_waiting_for_outputs = false;
+							// sd.close()
+							// inputs.remove(sd)
+					}
+				}
+			}
+				
+		}
 
 		if (error_in_actionset)
-			printf("error detected in actionset - halting subsequent actionsets\n");
+		{
+			printf("%serror detected in actionset - halting subsequent actionsets%s\n", RED, RST);
+			break;
+		}
+		
+		for (int i=0 ; i<max_connections ; i++)
+		{
+			if (sds[i] >= 0) 
+			{
+				shutdown(sds[i], SHUT_RDWR);
+				close(sds[i]);
+			}
+		}
 	}
+
+	// bool error_in_actionset = false;
+	// for (int i=0 ; i<rackfile.nActionSets && !error_in_actionset; i++)
+	// {
+	// 	for (int j=0 ; j<rackfile.actionSets[i].nActions && !error_in_actionset; j++)
+	// 	{
+	// 		int cheapest_host;
+	// 		if (rackfile.actionSets[i].actions[j].isLocal)
+	// 			cheapest_host = get_cheapest_host();
+	// 		switch ( fork() )
+	// 		{
+	// 			//* ERROR
+	// 			case -1:
+	// 				exit(EXIT_FAILURE);
+	// 				break;
+	// 			//* CHILD PROCESS
+	// 			case 0:
+	// 				// * IF ACTION IS REMOTE, THEN CHECK COST FROM EACH SERVER
+	// 				if (rackfile.actionSets[i].actions[j].isLocal)
+	// 				{
+
+	// 					// EXECUTE ON CHEAPEST REMOTE HOST
+	// 					printf("%s --- REMOTE EXECUTION --- \n%s", YEL, RST);
+	// 					int sd = establish_socket(rackfile.hosts[cheapest_host].host, rackfile.hosts[cheapest_host].port);
+	// 					int return_val = write_file_to_server(sd, rackfile.actionSets[i].actions[j].action);
+	// 					// printf("%sret - %i\n%s", YEL, return_val, RST);
+	// 					exit(return_val);
+	// 				}
+	// 				else
+	// 				{
+	// 					printf("%s --- LOCAL EXECUTION --- \n%s", YEL, RST);
+	// 					int sd = establish_socket("localhost", default_port);
+	// 					int return_val = write_file_to_server(sd, rackfile.actionSets[i].actions[j].action);
+	// 					// printf("%sret - %i\n%s", YEL, return_val, RST);
+	// 					exit(return_val);
+	// 				}
+	// 				break;
+	// 			//* PARENT PROCESS
+	// 			default:
+	// 				break;
+	// 		}
+	// 	}
+
+	// 	pid_t child;
+	// 	int status;
+	// 	// WAIT FOR ALL CHILD PROCESS TO EXIT
+	// 	while ((child = wait(&status)) > 0)
+	// 		if (WEXITSTATUS(status) != 0)
+	// 			error_in_actionset = true;
+
+	// 	if (error_in_actionset)
+	// 		printf("error detected in actionset - halting subsequent actionsets\n");
+	// }
 
     printf("\n");
     return EXIT_SUCCESS;
