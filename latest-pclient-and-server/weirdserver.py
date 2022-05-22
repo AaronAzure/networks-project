@@ -39,14 +39,24 @@ def find_output_file(directory, latest_update):
 	that exceed latest_update, then None is returned.
 	''' 
 	
-	if latest_update == 0.0:	# NO FILE IN TEMPORARY DIRECTORY.
+	if latest_update == None:	# NO FILE IN TEMPORARY DIRECTORY.
 		return None
 		
-	all_files = [f for f in os.listdir( directory ) if os.path.isfile(os.path.join(directory, f))]
+	all_files = [f for f in os.listdir( directory ) if os.path.isfile(f)]
+
+	latest_file = None
 	
 	for f in all_files:
-		if os.path.getmtime(os.path.join(directory, f)) > latest_update:
-			return f
+		print(f"{YEL}{f}\n{os.stat(f).st_mtime} >\n{latest_update}{RST}")
+		# if os.path.getmtime(f) > latest_update:
+			# latest_update = os.path.getmtime(f)
+		if os.stat(f).st_mtime > latest_update:
+			latest_update = os.stat(f).st_mtime
+			latest_file = f
+
+	if latest_file != None:
+		print(f"{CYN}  FOUND MOST RECENTLY MODIFIED FILE  {RST}")
+		return latest_file
 
 	return None
 
@@ -151,15 +161,16 @@ def main():
 				pid = os.fork()
 				# CHILD PROCESS DEALS WITH CURRENT ACTION
 				if pid == 0:
+					print(f"{BLU} - payload: {payload} - {RST}")
 					payload = payload.split(' Requirements:')
 					arguments = payload[0].split()	# STORES ARGUMENTS AS A LIST.
-					arguments = convert_filepath_to_local( arguments )
+					# arguments = convert_filepath_to_local( arguments )
 					requirements = []		# STORES INPUT FILE(S) AS A LIST.
-					latest_update = 0.0		# STORES TIME OF LATEST UPDATED FILE.
+					latest_update = None	# STORES TIME OF LATEST UPDATED FILE.
 
 					if len(payload) == 2:
 						requirements = payload[1].split()
-						requirements = convert_filepath_to_local( requirements )
+						# requirements = convert_filepath_to_local( requirements )
 
 					if VERBOSE:
 						print('< arguments:', arguments, '\n< requirements:', requirements)
@@ -171,7 +182,7 @@ def main():
 
 					# THERE ARE REQUIREMENTS
 					if len(requirements) > 0:
-						print(f"{BLU} - TEMPORARY DIRECTORY: {temp_dir} - {RST}")
+						# print(f"{BLU} - TEMPORARY DIRECTORY: {temp_dir} - {RST}")
 					
 						# RECEIVE EACH REQUIRED FILE
 						for required_file in requirements:
@@ -192,12 +203,21 @@ def main():
 								
 							file.write( file_data )
 							file.close()
+
+							input_files = [f for f in os.listdir( temp_dir ) if os.path.isfile(f)]
+							print(f"{GRN} input files = {input_files}",RST)
+
 							
 							# STORES MODIFIED TIME OF FILE IF IT EXCEEDS latest_update.
-							if latest_update < os.path.getmtime(os.path.join(temp_dir, required_file)):
-								latest_update = os.path.getmtime(os.path.join(temp_dir, required_file))
+							os.utime(required_file, tup)
+							if latest_update == None or latest_update < os.stat(required_file).st_mtime:
+								latest_update = os.stat(required_file).st_mtime
+							# if latest_update == None or latest_update < os.path.getmtime(required_file):
+							# 	latest_update = os.path.getmtime(required_file)
+
 
 					# EXECUTES COMMAND
+					# time.sleep(1)
 					execution = subprocess.run(' '.join(arguments), capture_output=True, shell=True)
 
 					# INFORM CLIENT OF ANY OUTPUT FILES.
@@ -224,11 +244,11 @@ def main():
 						exit_status = execution.returncode		# OUTPUT RETURN CODE.
 						err = execution.stderr.decode("utf-8")		# OUTPUT ERROR MESSAGE	.
 
-						input_files = [f for f in os.listdir( temp_dir ) if os.path.isfile(os.path.join(temp_dir, f))]
-						input_files.remove(output_file)
+						# input_files = [f for f in os.listdir( temp_dir ) if os.path.isfile(os.path.join(temp_dir, f))]
+						# input_files.remove(output_file)
 						
 						print(f"{RED} output file = {output_file}",RST)
-						print(f"{GRN} input files = {input_files}",RST)
+						# print(f"{GRN} input files = {input_files}",RST)
 
 						filenamelength = len(output_file)
 						filesize = os.path.getsize(output_file)
@@ -257,7 +277,6 @@ def main():
 
 					# DELETE ANY TEMP DIRECTORIES
 					if temp_dir:
-						print(f"{YEL} - DELETING FILES - {RST}")
 						shutil.rmtree( temp_dir )
 
 					client.close()

@@ -329,11 +329,11 @@ def main():
 					
 					mad_frame_server = sd.recv(16)	# FRAME: EXIT STATUS, FILENAME LENGTH, OUTPUT SIZE, ERROR LENGTH
 					if mad_frame_server:
-						frame_data = struct.unpack('i i i i', mad_frame_server)
-						exit_status = frame_data[0]
-						filename_len = frame_data[1]
-						output_size = frame_data[2]
-						err_size = frame_data[3]
+						frame_data 		= struct.unpack('i i i i', mad_frame_server)
+						exit_status 	= frame_data[0]
+						filename_len 	= frame_data[1]
+						output_size 	= frame_data[2]
+						err_size 		= frame_data[3]
 						print(f"< status:\n{exit_status}")
 						
 						# NOT RECEIVING OUTPUT FILE
@@ -341,8 +341,14 @@ def main():
 							output = sd.recv( output_size ).decode("utf-8")
 							err = sd.recv( err_size).decode("utf-8")
 							
-							print(f"< output:\n{output}")
-							print(f"< err:\n{err}")
+							if output != "":
+								print(f"< output:\n{output}")
+							else:
+								print(f"< output:\nNone")
+							if err != "":
+								print(f"< err:\n{err}")
+							else:
+								print(f"< err:\nNone")
 
 						# RECEIVING OUTPUT FILE
 						else:			
@@ -351,7 +357,10 @@ def main():
 							err = sd.recv( err_size).decode("utf-8")
 							
 							print(f"< output file name:\n{outputname}")
-							print(f"< err:\n{err}")
+							if err != "":
+								print(f"< err:\n{err}")
+							else:
+								print(f"< err:\nNone")
 
 							file = open(outputname, 'wb')
 							file.write(output)

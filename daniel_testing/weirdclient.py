@@ -454,6 +454,7 @@ def main():
 				# READ FROM SERVER, WHILST CONNECTED
 				for sd in exceptional:
 					error_in_actionset = True
+					still_waiting_for_outputs = False
 					sd.close()
 					inputs.remove(sd)
 

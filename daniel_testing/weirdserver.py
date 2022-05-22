@@ -110,22 +110,6 @@ def main():
 		SOCKET_NUM += 1
 		print(BOLD + " Accepted new client on sd=" + str(SOCKET_NUM) + RST)
 		
-		# while True: 
-		# 	data = client.recv(8)     #! BLOCKING
-		# 	if data != None:
-		# 		# DECRYPT HEADER
-		# 		header = struct.unpack('i i', data)
-		# 		asking_for_cost = bool(header[0])
-		# 		command_length = header[1]
-		# 		print(data)
-		# 		print(header)
-
-		# 		potato = struct.pack('i i', 18, 76586)
-		# 		client.send( potato )
-		# 		client.close()
-		# 		break
-		# continue
-		
 		while True: 
 			data = client.recv(8)     #! BLOCKING
 			if data != None:
