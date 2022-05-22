@@ -834,8 +834,8 @@ int main(int argc, char *argv[])
 	
 	bool error_in_actionset = false;
 	struct timeval timeout;
-	timeout.tv_sec  = 1;             // wait up to 0.5 seconds
-	timeout.tv_usec = 0;
+	// timeout.tv_sec  = 1;             // wait up to 0.5 seconds
+	timeout.tv_usec = 1000;
 
 	for (int i=0 ; i<rackfile.nActionSets && !error_in_actionset; i++)
 	{
