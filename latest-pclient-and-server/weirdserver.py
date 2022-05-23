@@ -200,53 +200,53 @@ def main():
 								# asking_for_cost = bool(header[0])
 								filename_length = req_file_header[1]
 								file_to_recv_size = req_file_header[2]
-								# continue
 
-								# if (req_file_header == (0, 0, 0)):
-								# 	continue
-
-								# GET THE NAME OF THE FILE TO BE RECEIVED FROM THE CLIENT
 
 								file_data = client.recv( file_to_recv_size )
+								print(f"{BLU}--------------------------------{RST}")
+								print(f"{BLU}{file_data}{RST}")
+								print(f"{BLU}--------------------------------{RST}")
 								# try:
 								# 	file_data.decode('utf-8')
 								# except:
 								# 	file_data = file_data
+								# continue
 								
-								# print(f"{BLU}--------------------------------{RST}")
-								# print(f"{BLU}{file_data}{RST}")
-								# print(f"{BLU}--------------------------------{RST}")
 								
-								required_file = client.recv(filename_length).decode("utf-8")
+								# GET THE NAME OF THE FILE TO BE RECEIVED FROM THE CLIENT
+								required_file = client.recv( filename_length ).decode("utf-8")
 								print(f"--|{required_file}|--")
 								file_content[required_file] = file_data
 								
-								# file = open(required_file, "wb")
-								# file.write( file_data )
-								# file.close()
+								#// file = open(required_file, "wb")
+								#// file.write( file_data )
+								#// file.close()
 
-								# # READ BINARY FILE
-								# try:
-								# 	file = open(required_file, "wb")
-								# 	file_data = client.recv( file_to_recv_size )
-								# 	file.write( file_data )
-								# 	file.close()
-								# # READ TEXT FILE
-								# except:
-								# 	file = open(required_file, "w")
-								# 	file_data = client.recv( file_to_recv_size ).decode("utf-8")
-								# 	file.write( file_data )
-								# 	file.close()
+								#// # READ BINARY FILE
+								#// try:
+								#// 	file = open(required_file, "wb")
+								#// 	file_data = client.recv( file_to_recv_size )
+								#// 	file.write( file_data )
+								#// 	file.close()
+								#// # READ TEXT FILE
+								#// except:
+								#// 	file = open(required_file, "w")
+								#// 	file_data = client.recv( file_to_recv_size ).decode("utf-8")
+								#// 	file.write( file_data )
+								#// 	file.close()
 									
 
-								# input_files = [f for f in os.listdir( temp_dir ) if os.path.isfile(f)]
-								# print(f"{GRN} input files = {input_files}",RST)
+								#// input_files = [f for f in os.listdir( temp_dir ) if os.path.isfile(f)]
+								#// print(f"{GRN} input files = {input_files}",RST)
 								
-								req_file_data = None
-								required_file = None
-								req_file_header = None
+								#// req_file_data = None
+								#// required_file = None
+								#// req_file_header = None
 
 						for filename, filedata in file_content.items():
+							if filename == '':
+								continue
+							print(f"creating file {filename}")
 							file = open(filename, "wb")
 							file.write( filedata )
 							file.close()
@@ -287,6 +287,7 @@ def main():
 					# HAS OUTPUT FILES.
 					else:
 						exit_status = execution.returncode		# OUTPUT RETURN CODE.
+						output = execution.stdout.decode("utf-8")	# OUTPUT.
 						err = execution.stderr.decode("utf-8")		# OUTPUT ERROR MESSAGE	.
 
 						# input_files = [f for f in os.listdir( temp_dir ) if os.path.isfile(os.path.join(temp_dir, f))]
@@ -306,7 +307,8 @@ def main():
 							file_data = file.read()
 	
 						print(f"> stat={exit_status}, filenamelength={filenamelength}, filesize={filesize}, errsize={len(err)}")
-						# print(f"> err={err}")
+						print(f"> out={output}")
+						print(f"> err={err}")
 						
 						header = struct.pack('i i i i', exit_status, filenamelength, filesize, len(err))
 						
@@ -329,8 +331,8 @@ def main():
 					os.chdir(server_dir)
 
 					# DELETE ANY TEMP DIRECTORIES
-					if temp_dir:
-						shutil.rmtree( temp_dir )
+					# if temp_dir:
+					# 	shutil.rmtree( temp_dir )
 
 					client.close()
 					print(BOLD + ' Client disconnected from sd=' + str(SOCKET_NUM) + '\n' + RST)

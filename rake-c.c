@@ -491,7 +491,6 @@ void write_file_to_server(int sd, Action action)
 		{
 			// /* declare a file pointer */
 			FILE    *fp;
-			char    *buffer;
 			int    n_bytes;
 			
 			// /* open an existing file for reading */
@@ -504,19 +503,16 @@ void write_file_to_server(int sd, Action action)
 			// /* Get the number of bytes */
 			fseek(fp, 0L, SEEK_END);
 			n_bytes = ftell(fp);
+			char    buffer[n_bytes];
 			
 			// /* reset the file position indicator to the beginning of the file */
 			fseek(fp, 0L, SEEK_SET);	
 			
 			// /* grab sufficient memory for the buffer to hold the text */
-			buffer = (char*) calloc(n_bytes, sizeof(char));	
-			
-			// /* memory error */
-			if(buffer == NULL)
-				exit(EXIT_FAILURE);
+			// buffer = (char*) calloc(n_bytes, sizeof(char));	
 			
 			// /* copy all the text into the buffer */
-			fread(buffer, sizeof(char), n_bytes, fp);
+			fread(&buffer, n_bytes, sizeof(char), fp);
 			fclose(fp);
 
 			printf("%s> sending '%s'%s\n", BLU, action.requiredFiles[i], RST);
@@ -571,20 +567,22 @@ void write_file_to_server(int sd, Action action)
 			// 	temp[c] = '!';
 
 			printf("%s{%s} - (%lu)%s\n", RED, buffer, sizeof(buffer), RST);
-			if (write(sd, buffer, sizeof(buffer)) < 0) 
+			if (write(sd, buffer, sizeof(char) * n_bytes) < 0) 
 			{
 				perror("sending file:");
 				exit(EXIT_FAILURE);
 			}
+			// continue;
 			/* free the memory we used for the buffer */
-			free(buffer);
+			// free(buffer);
 			
 			//! printf("%s> SENT!!!%s\n", BLU, RST);
 			// close(fp);
 			// fclose(fp);
 
 			// SEND FILE NAME
-			if (write(sd, action.requiredFiles[i], sizeof(action.requiredFiles[i])) < 0) 
+			printf(">>%s (%lu)%s\n", CYN, strlen(action.requiredFiles[i]), RST);
+			if (write(sd, action.requiredFiles[i], strlen(action.requiredFiles[i])) < 0) 
         		exit(EXIT_FAILURE);
 			// fclose(fp);
 			// free(buffer);
