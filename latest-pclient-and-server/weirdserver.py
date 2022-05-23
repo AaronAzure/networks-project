@@ -39,26 +39,27 @@ def find_output_file(directory, latest_update):
 	that exceed latest_update, then None is returned.
 	''' 
 	
-	if latest_update == None:	# NO FILE IN TEMPORARY DIRECTORY.
-		return None
+	# if latest_update == None:	# NO FILE IN TEMPORARY DIRECTORY.
+	# 	return None
 		
 	all_files = [f for f in os.listdir( directory ) if os.path.isfile(f)]
+	if len(all_files) == 0:
+		return None 
 
-	latest_file = None
-	
-	for f in all_files:
-		print(f"{YEL}{f}\n{os.stat(f).st_mtime} >\n{latest_update}{RST}")
-		# if os.path.getmtime(f) > latest_update:
-			# latest_update = os.path.getmtime(f)
-		if os.stat(f).st_mtime > latest_update:
-			latest_update = os.stat(f).st_mtime
-			latest_file = f
+	# latest_file = None
+	# for f in all_files:
+	# 	print(f"{YEL}{f}\n{os.stat(f).st_mtime} >\n{latest_update}{RST}")
+	# 	# if os.path.getmtime(f) > latest_update:
+	# 		# latest_update = os.path.getmtime(f)
+	# 	if os.stat(f).st_mtime > latest_update:
+	# 		latest_update = os.stat(f).st_mtime
+	# 		latest_file = f
 
-	if latest_file != None:
-		print(f"{CYN}  FOUND MOST RECENTLY MODIFIED FILE  {RST}")
-		return latest_file
+	# if latest_file != None:
+	# 	print(f"{CYN}  FOUND MOST RECENTLY MODIFIED FILE  {RST}")
+	# 	return latest_file
 
-	return None
+	return max(all_files, key=os.path.getctime)
 
 
 def read_option_flags():
@@ -189,41 +190,37 @@ def main():
 						# RECEIVE EACH REQUIRED FILE
 						for i in range(n_required_files):
 						# for required_file in requirements:
-							data = client.recv(12)     #! BLOCKING
+							req_file_data = client.recv(12)     #! BLOCKING
 
 							# DECRYPT HEADER
-							header = struct.unpack('i i i', data)
-							# asking_for_cost = bool(header[0])
-							filename_length = header[1]
-							file_to_recv_size = header[2]
+							if req_file_data:
+								header = struct.unpack('i i i', req_file_data)
+								# asking_for_cost = bool(header[0])
+								filename_length = header[1]
+								file_to_recv_size = header[2]
 
-							# GET THE NAME OF THE FILE TO BE RECEIVED FROM THE CLIENT
-							required_file = client.recv(filename_length).decode("utf-8")
+								# GET THE NAME OF THE FILE TO BE RECEIVED FROM THE CLIENT
+								required_file = client.recv(filename_length).decode("utf-8")
 
-							# GET THE SIZE OF THE FILE TO BE RECEIVED FROM THE CLIENT
-							reply = client.recv(4)
-							# data_size = struct.unpack('i', reply)
-							# file_to_recv_size = data_size[0]
+								# READ BINARY FILE
+								try:
+									file = open(required_file, "wb")
+									file_data = client.recv( file_to_recv_size )
+								# READ TEXT FILE
+								except:
+									file = open(required_file, "w")
+									file_data = client.recv( file_to_recv_size ).decode("utf-8")
+									
+								file.write( file_data )
+								file.close()
 
-							# READ BINARY FILE
-							try:
-								file = open(required_file, "wb")
-								file_data = client.recv( file_to_recv_size )
-							# READ TEXT FILE
-							except:
-								file = open(required_file, "w")
-								file_data = client.recv( file_to_recv_size ).decode("utf-8")
-								
-							file.write( file_data )
-							file.close()
-
-							input_files = [f for f in os.listdir( temp_dir ) if os.path.isfile(f)]
-							print(f"{GRN} input files = {input_files}",RST)
+								input_files = [f for f in os.listdir( temp_dir ) if os.path.isfile(f)]
+								print(f"{GRN} input files = {input_files}",RST)
 
 							
 							# STORES MODIFIED TIME OF FILE IF IT EXCEEDS latest_update.
-							if latest_update == None or latest_update < os.stat(required_file).st_mtime:
-								latest_update = os.stat(required_file).st_mtime
+							# if latest_update == None or latest_update < os.stat(required_file).st_mtime:
+							# 	latest_update = os.stat(required_file).st_mtime
 							# if latest_update == None or latest_update < os.path.getmtime(required_file):
 							# 	latest_update = os.path.getmtime(required_file)
 
@@ -245,10 +242,12 @@ def main():
 						client.send(header)
 
 						print(f"> out={output}")
-						client.send(bytes(output, "utf-8"))
+						if len(output) > 0:
+							client.send(bytes(output, "utf-8"))
 						
 						print(f"> err={err}")
-						client.send(bytes(err, "utf-8"))
+						if len(err) > 0:
+							client.send(bytes(err, "utf-8"))
 						
 					# HAS OUTPUT FILES.
 					else:
@@ -258,7 +257,7 @@ def main():
 						# input_files = [f for f in os.listdir( temp_dir ) if os.path.isfile(os.path.join(temp_dir, f))]
 						# input_files.remove(output_file)
 						
-						print(f"{RED} output file = {output_file}",RST)
+						print(f"{RED} output file = |{output_file}|",RST)
 						# print(f"{GRN} input files = {input_files}",RST)
 
 						filenamelength = len(output_file)
@@ -266,20 +265,28 @@ def main():
 						
 						try:
 							file = open(output_file, 'rb')
-							reading_file = file.read()
+							file_data = file.read()
 						except:
 							file = open(output_file, 'r')
-							reading_file = file.read()
+							file_data = file.read()
 	
-						print(f"> stat={exit_status}, filesize={filesize}, errsize={len(err)}")
+						print(f"> stat={exit_status}, filenamelength={filenamelength}, filesize={filesize}, errsize={len(err)}")
 						print(f"> err={err}")
 						
 						header = struct.pack('i i i i', exit_status, filenamelength, filesize, len(err))
 						
-						client.send(header)
+						client.send( header )
+
+						# SENDING FILENAME 
 						client.send(bytes(output_file,"utf-8"))
-						client.send(reading_file)
-						client.send(bytes(err, "utf-8"))
+
+						# SENDING CONTENTS OF FILE 
+						if filesize > 0:
+							client.send( file_data )
+
+						# SENDING ANY ERRORS
+						if len(err) > 0:
+							client.send(bytes(err, "utf-8"))
 						
 						file.close()
 					

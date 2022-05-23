@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h> 
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <sys/stat.h>
@@ -489,6 +490,7 @@ void write_file_to_server(int sd, Action action)
 		for (int i=0 ; i<action.nRequiredFiles ; i++)
 		{
 			struct stat sb;
+			puts(action.requiredFiles[i]);
 
 			if (stat(action.requiredFiles[i], &sb) == -1) 
 			{
@@ -518,17 +520,24 @@ void write_file_to_server(int sd, Action action)
         		exit(EXIT_FAILURE);
 				
 			
-			FILE  *fp = fopen(action.requiredFiles[i], "rb");
+			FILE  *fp = fopen(action.requiredFiles[i], "r");
 			char file_content[req_file_header.n_required_files];
 			fgets(file_content, sizeof(file_content), fp);
-			printf("%s> sending file!!!%s\n", BLU, RST);
-			if (write(sd, file_content, strlen(file_content)) < 0) 
+			//! printf("%s> sending file!!!%s\n", BLU, RST);
+
+			// int fp, bytes;
+			// char *data = (char *) calloc(req_file_header.n_required_files, sizeof(char)); 
+			// fp = open(action.requiredFiles[i], O_RDONLY);
+			// bytes = read(fp, data, req_file_header.n_required_files); 
+			// if (write(sd, data, bytes) < 0) 
+			if (write(sd, file_content, sizeof(file_content)) < 0) 
 			{
 				perror("sending file:");
 				exit(EXIT_FAILURE);
 			}
 			
-			printf("%s> SENT!!!%s\n", BLU, RST);
+			//! printf("%s> SENT!!!%s\n", BLU, RST);
+			// close(fp);
 			fclose(fp);
 		}   
 	}
@@ -574,158 +583,6 @@ int get_cheapest_host(char *argument)
 		}
 	}
 	return cheapest_host;
-}
-
-//! delete
-void none()
-{
-    // int sds[rackfile.nHosts];
-    // fd_set read_fd_set;
-	// FD_ZERO(&read_fd_set);
-
-    // // INITIALISE ALL REMOTE SOCKETS
-	// for (int h=0 ; h<rackfile.nHosts ; h++)
-    // {
-	// 	int sd = establish_socket(rackfile.hosts[h].host, rackfile.hosts[h].port);
-	// 	sds[h] = sd;
-	// 	FD_SET(sd, &read_fd_set);
-	// 	if (write(sd, "cost?", strlen("cost?")) < 0) 
-	// 		return -1;
-    // }
-
-	// struct timeval timeout;
-	// timeout.tv_sec  = 10;             // wait up to 10 seconds
-	// timeout.tv_usec =  0;
-
-    // int cost_received = 0;
-    // int lowest_cost = -1;
-    // int cheapest_host = -1;
-
-	// bool keep_going = true;
-    // while (keep_going)
-    // {
-    //     // init fd_set
-    //     for (int h=0 ; h<rackfile.nHosts ; h++)
-    //     {
-    //         FD_SET(sds[h], &read_fd_set);
-    //     }
-
-	// 	// READ FILE DESCRIPTORS
-	// 	// if (select(FD_SETSIZE, &read_fd_set, NULL, NULL, &timeout) < 0) 
-	// 	if (select(FD_SETSIZE, &read_fd_set, NULL, NULL, NULL) < 0) 
-	// 	{
-    //         exit(EXIT_FAILURE);
-    //     }
-		
-    //     for (int h=0 ; h<rackfile.nHosts ; h++)
-    //     {
-    //         if (FD_ISSET(sds[h], &read_fd_set)) 
-    //         {
-	// 			char server_cost[2048];
-    //             read(sds[h], server_cost , 2048);
-				
-	// 			int reply_cost = atoi(server_cost);
-				
-	// 			// REMEMBER CHEAPEST HOST TO RUN COMMAND/ACTION
-	// 			if (reply_cost < lowest_cost || lowest_cost == -1)
-	// 			{
-	// 				lowest_cost = reply_cost;
-	// 				cheapest_host = h;
-	// 			}
-
-	// 			cost_received++;
-	// 			if (cost_received >= rackfile.nHosts)
-	// 				keep_going = false;
-	// 			FD_CLR(sds[h], &read_fd_set);
-	// 		}
-	// 	}
-	// }
-	
-	// /* Last step: Close all the sockets */
-	// for (int h=0 ; h<rackfile.nHosts ; h++)
-	// {
-	// 	if (sds[h] >= 0) 
-	// 	{
-	// 		shutdown(sds[h], SHUT_RDWR);
-	// 		close(sds[h]);
-	// 	}
-	// }
-
-	// return cheapest_host;
-}
-//! delete
-void non_blocking()
-{
-	// int max_connections	= rackfile.actionSets[i].nActions + 1;
-	// int n_connected 	= 0;
-    // int sds[max_connections];	// MAX NO. OF ACTION IN ACTIONSET + NO. OF SERVERS (DEFAULT + REMOTE)
-	
-    // fd_set read_fd_set;
-	// FD_ZERO(&read_fd_set);
-
-    // // INITIALISE ALL REMOTE SOCKETS
-	// for (int i=0 ; i<max_connections ; i++)
-	// 	sds[h] = -1;
-	// // FD_SET(sd, &read_fd_set);
-	// // if (write(sd, "cost?", strlen("cost?")) < 0) 
-
-	// struct timeval timeout;
-	// timeout.tv_sec  = 0;             // wait up to 0.5 seconds
-	// timeout.tv_usec = 5000;
-
-	// bool keep_going = true;
-    // while (keep_going)
-    // {
-	// 	FD_ZERO(&read_fd_set);
-
-    //     // re-init fd_set
-    //     for (int i=0 ; i<max_connections ; i++)
-    //     {
-	// 		// if (sds[i] >= 0 && FD_ISSET(i, &read_fd_set))
-	// 		if (sds[i] >= 0)
-    //         	FD_SET(i, &read_fd_set);
-    //     }
-
-	// 	// READ FILE DESCRIPTORS
-	// 	// if (select(FD_SETSIZE, &read_fd_set, NULL, NULL, NULL) < 0) 
-	// 	if (select(FD_SETSIZE, &read_fd_set, NULL, NULL, &timeout) > 0) 
-	// 	{
-	// 		for (int i=0 ; i<max_connections ; i++)
-	// 		{
-	// 			if (FD_ISSET(sds[i], &read_fd_set)) 
-	// 			{
-	// 				char server_cost[2048];
-	// 				read(sds[i], server_cost , 2048);
-					
-	// 				int reply_cost = atoi(server_cost);
-					
-	// 				// REMEMBER CHEAPEST HOST TO RUN COMMAND/ACTION
-	// 				if (reply_cost < lowest_cost || lowest_cost == -1)
-	// 				{
-	// 					lowest_cost = reply_cost;
-	// 					cheapest_host = i;
-	// 				}
-
-	// 				cost_received++;
-	// 				if (cost_received >= rackfile.nHosts)
-	// 					keep_going = false;
-	// 				FD_CLR(sds[i], &read_fd_set);
-	// 			}
-	// 		}
-	// 	}
-	// }
-	
-	// /* Last step: Close all the sockets */
-	// for (int i=0 ; i<max_connections ; i++)
-	// {
-	// 	if (sds[i] >= 0) 
-	// 	{
-	// 		shutdown(sds[i], SHUT_RDWR);
-	// 		close(sds[i]);
-	// 	}
-	// }
-
-	// return cheapest_host;
 }
 //! delete
 void read_sockets(int *n_connected, int max_connections)
@@ -855,7 +712,7 @@ int main(int argc, char *argv[])
 		if (verbose)
 		{
 			printf("%s --------------------------------------------------------------------------------%s\n", GRN, RST);
-			// printf('starting', actionset);
+			printf("starting actionset%i\n", i + 1);
 			// printf(f"{GRN}{rake_dict[actionset]}{RST}");
 		}
 
@@ -933,50 +790,82 @@ int main(int argc, char *argv[])
 							int error_size 		= response.error_size;
 
 							printf("< status:\n%d\n", exit_status);
+							printf("exit_status=%i, filename_len=%i, output_size=%i, error_size=%i\n", exit_status , filename_len , output_size , error_size);
 							
 							// NOT RECEIVING OUTPUT FILE
 							if (filename_len == 0)
 							{
-								// output = sd.recv( output_size ).decode("utf-8")
-								char output[ output_size ];
-								read(sds[j], &output , output_size);
-								// err = sd.recv( err_size).decode("utf-8")
-								char error[ error_size ];
-								read(sds[j], &error , error_size);
-								
-								if (strcmp(output, "") != 0)
+								printf("NOT RECEIVING FILES\n");
+
+								if (output_size > 0)
+								{
+									char output[ output_size ];
+									read(sds[j], &output , output_size);
 									printf("< output:\n%s\n", output);
+								}
 								else
 									printf("< output:\nNone\n");
 
-								if (strcmp(error, "") != 0)
+								if (error_size > 0)
+								{
+									char error[ error_size ];
+									read(sds[j], &error , error_size);
 									printf("< err:\n%s\n", error);
+								}
 								else
 									printf("< err:\nNone\n");
 							}
 							// RECEIVING OUTPUT FILE
 							else
 							{
-								char outputname[ filename_len ];
-								read(sds[j], &outputname , filename_len);
-
-								char output[ output_size ];
-								read(sds[j], &output , output_size);
-
-								char error[ error_size ];
-								read(sds[j], &error , error_size);
+								printf("RECEIVING FILES %i\n", filename_len);
 								
+								int bytes;
+								char *outputname;
+								outputname = malloc(filename_len);
+								bytes = read(sds[j], outputname , filename_len);
+								outputname[bytes]  = '\0';
+								// printf("|%s|\n", outputname);
+
+								int fp = open(outputname, O_WRONLY | O_CREAT | O_TRUNC, 0777); 
+								// puts("created file ")
+								
+								if (output_size > 0)
+								{
+									char output[ output_size ];
+									read(sds[j], &output , output_size);
+
+									if (fp >= 0)
+									{
+										write(fp, output, output_size);
+										close(fp);
+									}
+								}
+								else
+								{
+									if (fp >= 0)
+									{
+										// write(fp, "", output_size);
+										close(fp);
+									}
+								}
+
 								printf("< output file name:\n%s\n", outputname);
-								if (strcmp(error, "") != 0)
+								if (error_size != 0)
+								{
+									char error[ error_size ];
+									read(sds[j], &error , error_size);
+
 									printf("< err:\n%s\n", error);
+								}
 								else
 									printf("< err:\nNone\n");
 
 								// file = open(outputname, 'wb')
-								FILE  *fp = fopen(outputname, "wb");
-								fwrite(output, sizeof(output), 1, fp);
+								// FILE  *fp = fopen(outputname, "wb");
+								// fwrite(output, sizeof(output), 1, fp);
+								// fclose(fp);
 								
-								fclose(fp);
 							}
 							
 							// ACTION FAILED
