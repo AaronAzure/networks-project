@@ -122,23 +122,23 @@ def get_action_set_names(rdictionary):
 
 	return actionsets
 
-def execute_on_server(server_port_tuple, argument, requirements=None):
+def execute_on_server(server_port_tuple, argument, requirements=[]):
 	'''
 	Function that performes actions that require the server. 
 	Receives the action and a list of the necessary files.
 	'''
 	# ADDS FILE REQUIREMENTS TO arguments STRING, SEPARATED BY ' Requirements: '.
-	if requirements != None:
-		argument += ' Requirements:'
-		for requirement in requirements:
-			argument += ' '
-			argument += requirement
+	# if requirements != None:
+	# 	argument += ' Requirements:'
+	# 	for requirement in requirements:
+	# 		argument += ' '
+	# 		argument += requirement
 	
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	sd.connect( server_port_tuple )
 	
 	# INFORMS SERVER REGARDING THE PAYLOAD SIZE
-	header = struct.pack('i i', 0, len(argument))
+	header = struct.pack('i i i ', 0, len(argument), len(requirements))
 	sd.send( header )
 	
 	# SENDS SERVER THE COMMAND/ACTION TO BE EXECUTED
@@ -149,11 +149,14 @@ def execute_on_server(server_port_tuple, argument, requirements=None):
 		for requirement in requirements:
 			print(f'{BLU}> sending', requirement, RST)
 
-			# INFORM THE SERVER THE SIZE OF THE FILE TO RECEIVE
 			file_size = os.path.getsize( requirement )
-			file_size_struct = struct.pack('i', file_size)
-			print(f'{BLU}> filesize = {file_size}, sent as {file_size_struct}', RST)
-			sd.send( file_size_struct )
+			file_data = struct.pack('i i i ', 0, len(requirement), file_size)
+
+			# INFORM THE SERVER THE SIZE OF THE FILE TO RECEIVE
+			# file_size_struct = struct.pack('i', file_size)
+			# print(f'{BLU}> filesize = {file_size}, sent as {file_size_struct}', RST)
+			# sd.send( file_size_struct )
+			sd.send( file_data )
 
 			try: 
 				file = open(requirement, 'rb')
@@ -166,21 +169,23 @@ def execute_on_server(server_port_tuple, argument, requirements=None):
 			
 			file.close()
 
+			sd.send( bytes(requirement, "utf-8") )
+
 	return sd
 	
 
-def get_cheapest_host(hosts, argument, requirements=None):
+def get_cheapest_host(hosts, argument, requirements=[]):
 	'''
 	Simultaneously get the cost of each remote host, 
 	and report back the remote host with the lowest cost
 	'''
-	if requirements != None:
-		argument += ' Requirements: '
-		for requirement in requirements:
-			argument += requirement
-			argument += ' '
+	# if requirements != None:
+	# 	argument += ' Requirements: '
+	# 	for requirement in requirements:
+	# 		argument += requirement
+	# 		argument += ' '
 	
-	frame = struct.pack('i i', 1, len(argument))
+	frame = struct.pack('i i i', 1, len(argument), len(requirements))
 
 	cheapest_host = 0
 	lowest_cost = float('inf')
