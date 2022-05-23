@@ -122,23 +122,22 @@ def get_action_set_names(rdictionary):
 
 	return actionsets
 
-def execute_on_server(server_port_tuple, argument, requirements=[]):
+def execute_on_server(server_port_tuple, argument, requirements=None):
 	'''
 	Function that performes actions that require the server. 
 	Receives the action and a list of the necessary files.
 	'''
-	# ADDS FILE REQUIREMENTS TO arguments STRING, SEPARATED BY ' Requirements: '.
-	# if requirements != None:
-	# 	argument += ' Requirements:'
-	# 	for requirement in requirements:
-	# 		argument += ' '
-	# 		argument += requirement
 	
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	sd.connect( server_port_tuple )
 	
 	# INFORMS SERVER REGARDING THE PAYLOAD SIZE
-	header = struct.pack('i i i ', 0, len(argument), len(requirements))
+	req_len = 0
+	
+	if not requirements == None:
+		req_len = len(requirements)
+
+	header = struct.pack('i i i', 0, len(argument), req_len)
 	sd.send( header )
 	
 	# SENDS SERVER THE COMMAND/ACTION TO BE EXECUTED
@@ -149,43 +148,41 @@ def execute_on_server(server_port_tuple, argument, requirements=[]):
 		for requirement in requirements:
 			print(f'{BLU}> sending', requirement, RST)
 
+			# INFORM THE SERVER THE LENGTH OF THE FILE NAME AND SIZE OF THE FILE TO RECEIVE
 			file_size = os.path.getsize( requirement )
-			file_data = struct.pack('i i i ', 0, len(requirement), file_size)
-
-			# INFORM THE SERVER THE SIZE OF THE FILE TO RECEIVE
-			# file_size_struct = struct.pack('i', file_size)
-			# print(f'{BLU}> filesize = {file_size}, sent as {file_size_struct}', RST)
-			# sd.send( file_size_struct )
-			sd.send( file_data )
+			file_name_length = len(requirement)
+			file_struct = struct.pack('i i', file_name_length, file_size)
+			print(f'{BLU}> filesize = {file_size}, file name length = {file_name_length}, sent as {file_struct}', RST)
+			sd.send( file_struct )
+			
+			sd.send( bytes(requirement, 'utf-8') )				# SENDING FILE NAME.
 
 			try: 
 				file = open(requirement, 'rb')
 				file_to_send = file.read()
-				sd.send( file_to_send )
+				sd.send( file_to_send )			# SENDING BINARY FILE.
 			except:
 				file = open(requirement, 'r')
 				file_to_send = file.read()
-				sd.send(bytes(file_to_send, "utf-8"))
+				sd.send(bytes(file_to_send, "utf-8"))	# SENDING TEXT FILE.
 			
 			file.close()
-
-			sd.send( bytes(requirement, "utf-8") )
 
 	return sd
 	
 
-def get_cheapest_host(hosts, argument, requirements=[]):
+def get_cheapest_host(hosts, argument, requirements=None):
 	'''
 	Simultaneously get the cost of each remote host, 
 	and report back the remote host with the lowest cost
 	'''
-	# if requirements != None:
-	# 	argument += ' Requirements: '
-	# 	for requirement in requirements:
-	# 		argument += requirement
-	# 		argument += ' '
+	if requirements != None:
+		argument += ' Requirements: '
+		for requirement in requirements:
+			argument += requirement
+			argument += ' '
 	
-	frame = struct.pack('i i i', 1, len(argument), len(requirements))
+	frame = struct.pack('i i i', 1, len(argument), 0)
 
 	cheapest_host = 0
 	lowest_cost = float('inf')
@@ -332,44 +329,37 @@ def main():
 					print(MAG, "----------------------------------------", RST)
 					print(MAG, f"from {sd.getpeername()}", RST)
 					
-					mad_frame_server = sd.recv(16)	# FRAME: EXIT STATUS, FILENAME LENGTH, OUTPUT SIZE, ERROR LENGTH
+					exit_status = 1
+					
+					# SERVER TO CLIENT FRAME: EXIT STATUS, OUTPUT LENGTH, OUTPUT FILE SIZE
+					#                         OUTPUT FILE NAME LENGTH, ERROR LENGTH
+					mad_frame_server = sd.recv(20)
 					if mad_frame_server:
-						frame_data 		= struct.unpack('i i i i', mad_frame_server)
-						exit_status 	= frame_data[0]
-						filename_len 	= frame_data[1]
-						output_size 	= frame_data[2]
-						err_size 		= frame_data[3]
-						print(f"< status:\n{exit_status}")
+						frame_data = struct.unpack('i i i i i', mad_frame_server)
+						exit_status = frame_data[0]
+						output_len = frame_data[1]
+						output_filesize = frame_data[2]
+						output_filename_length = frame_data[3]
+						err_size = frame_data[4]
 						
-						# NOT RECEIVING OUTPUT FILE
-						if filename_len == 0:	
-							output = sd.recv( output_size ).decode("utf-8")
-							err = sd.recv( err_size).decode("utf-8")
-							
-							if output != "":
-								print(f"< output:\n{output}")
-							else:
-								print(f"< output:\nNone")
-							if err != "":
-								print(f"< err:\n{err}")
-							else:
-								print(f"< err:\nNone")
+						print(f"< status:\n{exit_status}")
+			
+						output = sd.recv( output_len ).decode("utf-8")
+						err = sd.recv( err_size ).decode("utf-8")
 
 						# RECEIVING OUTPUT FILE
-						else:			
-							outputname = sd.recv( filename_len ).decode("utf-8")
-							output = sd.recv( output_size )
-							err = sd.recv( err_size).decode("utf-8")
-							
-							print(f"< output file name:\n{outputname}")
-							if err != "":
-								print(f"< err:\n{err}")
-							else:
-								print(f"< err:\nNone")
+						if output_filesize > 0 and output_filename_length > 0:			
+							output_file = sd.recv( output_filesize )
+							output_filename = sd.recv( output_filename_length ).decode("utf-8")
 
-							file = open(outputname, 'wb')
-							file.write(output)
+							file = open(output_filename, 'wb')
+							file.write(output_file)
 							file.close()
+							
+							print(f"< output file name:\n{output_filename}")
+						
+						print(f"< output:\n{output}")
+						print(f"< err:\n{err}")
 					
 					if exit_status != 0:
 						error_in_actionset = True
