@@ -489,56 +489,105 @@ void write_file_to_server(int sd, Action action)
 	{
 		for (int i=0 ; i<action.nRequiredFiles ; i++)
 		{
-			struct stat sb;
-			puts(action.requiredFiles[i]);
-
-			if (stat(action.requiredFiles[i], &sb) == -1) 
-			{
-				perror("stat");
+			// /* declare a file pointer */
+			FILE    *fp;
+			char    *buffer;
+			int    n_bytes;
+			
+			// /* open an existing file for reading */
+			fp = fopen(action.requiredFiles[i], "rb");
+			
+			// /* quit if the file does not exist */
+			if(fp == NULL)
 				exit(EXIT_FAILURE);
-			}
+			
+			// /* Get the number of bytes */
+			fseek(fp, 0L, SEEK_END);
+			n_bytes = ftell(fp);
+			
+			// /* reset the file position indicator to the beginning of the file */
+			fseek(fp, 0L, SEEK_SET);	
+			
+			// /* grab sufficient memory for the buffer to hold the text */
+			buffer = (char*) calloc(n_bytes, sizeof(char));	
+			
+			// /* memory error */
+			if(buffer == NULL)
+				exit(EXIT_FAILURE);
+			
+			// /* copy all the text into the buffer */
+			fread(buffer, sizeof(char), n_bytes, fp);
+			fclose(fp);
 
-			printf("%s> sending %s%s\n", BLU, action.requiredFiles[i], RST);
+			printf("%s> sending '%s'%s\n", BLU, action.requiredFiles[i], RST);
 
 			// INFORM THE SERVER THE SIZE OF THE FILE TO RECEIVE
 			HeaderToServer req_file_header;
 			req_file_header.asking_for_cost = 0;
 			req_file_header.message_length = strlen(action.requiredFiles[i]);
-			req_file_header.n_required_files = (int)sb.st_size;
+			req_file_header.n_required_files = n_bytes;
 
-			printf("%s> filesize = %i%s\n", BLU, (int) sb.st_size, RST);
+			printf("%s> cost=%i, len=%i, size=%i%s\n", BLU, 
+				req_file_header.asking_for_cost, 
+				req_file_header.message_length,
+				n_bytes, RST);
+			
 			if (write(sd, &req_file_header, sizeof(req_file_header)) < 0) 
 			{
 				perror("filsize:");
         		exit(EXIT_FAILURE);
 			}
-			
-			// SEND FILE NAME
-			printf("%s> sending %s%s\n", BLU, action.requiredFiles[i], RST);
-			// printf("%s> filename = %i%s\n", BLU, (int) sb.st_size, RST);
-			if (write(sd, action.requiredFiles[i], sizeof(action.requiredFiles[i])) < 0) 
-        		exit(EXIT_FAILURE);
-				
-			
-			FILE  *fp = fopen(action.requiredFiles[i], "r");
-			char file_content[req_file_header.n_required_files];
-			fgets(file_content, sizeof(file_content), fp);
-			//! printf("%s> sending file!!!%s\n", BLU, RST);
 
+			// continue;
+
+			//! ------------------------
+			// FILE  *fp = fopen(action.requiredFiles[i], "rb");
+			// fseek(fp, 0, SEEK_END);          // Jump to the end of the file
+			// long filelen = ftell(fp);
+			// fseek(fp, 0, SEEK_SET);          // Jump to the end of the file
+
+			// char *buffer = (char *)calloc((int)info.st_size, sizeof(char)); // Enough memory for the file
+			// char buffer[(int)info.st_size];
+			// fread(&buffer, (int)info.st_size, 1, fp);
+			//! ------------------------
 			// int fp, bytes;
-			// char *data = (char *) calloc(req_file_header.n_required_files, sizeof(char)); 
+			// fp = open(action.requiredFiles[i] , O_RDONLY, 0600);
+			// char *buffer = (char *) calloc((int)info.st_size, sizeof(char)); 
+			// bytes = read(fp, buffer, (int)info.st_size);
+			// buffer[bytes] = '\0';
+			// int fp, bytes;
+			// fp = open(action.requiredFiles[i] , O_RDONLY, 0600);
+			// char buffer[(int)info.st_size]; 
+			// bytes = read(fp, buffer, (int)info.st_size);
+			// printf("%s{%i}%s\n", RED, bytes, RST);
+			// buffer[bytes] = '\0';
+			//! ------------------------
 			// fp = open(action.requiredFiles[i], O_RDONLY);
 			// bytes = read(fp, data, req_file_header.n_required_files); 
 			// if (write(sd, data, bytes) < 0) 
-			if (write(sd, file_content, sizeof(file_content)) < 0) 
+			
+			// char temp[(int)info.st_size];
+			// for (int c=0 ; c<(int)info.st_size ; c++)
+			// 	temp[c] = '!';
+
+			printf("%s{%s} - (%lu)%s\n", RED, buffer, sizeof(buffer), RST);
+			if (write(sd, buffer, sizeof(buffer)) < 0) 
 			{
 				perror("sending file:");
 				exit(EXIT_FAILURE);
 			}
+			/* free the memory we used for the buffer */
+			free(buffer);
 			
 			//! printf("%s> SENT!!!%s\n", BLU, RST);
 			// close(fp);
-			fclose(fp);
+			// fclose(fp);
+
+			// SEND FILE NAME
+			if (write(sd, action.requiredFiles[i], sizeof(action.requiredFiles[i])) < 0) 
+        		exit(EXIT_FAILURE);
+			// fclose(fp);
+			// free(buffer);
 		}   
 	}
 }
@@ -856,7 +905,7 @@ int main(int argc, char *argv[])
 									char error[ error_size ];
 									read(sds[j], &error , error_size);
 
-									printf("< err:\n%s\n", error);
+									// printf("< err:\n%s\n", error);
 								}
 								else
 									printf("< err:\nNone\n");
