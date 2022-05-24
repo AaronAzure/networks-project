@@ -4,7 +4,7 @@
 # Daniel Ling		(22896002)
 
 import shutil, socket, struct, subprocess, sys
-import getopt, os, random, tempfile
+import getopt, os, random, tempfile, time
 
 HOST = 'localhost'
 PORT_NUM = 12345
