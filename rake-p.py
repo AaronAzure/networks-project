@@ -16,7 +16,6 @@ CYN = "\033[1;36m"
 RST = "\033[0m"
 
 ############ HARDCODE, GET RID OF THIS LATER ##################################
-PORT_NUM = 12345
 VERBOSE = False
 rakefile  = 'Rakefile'	# Will be used to store rakefile.
 #################################################################################
@@ -135,14 +134,16 @@ def execute_on_server(server_port_tuple, argument, requirements=[]):
 	# SEND FILES TO SERVER
 	if requirements != None:
 		for requirement in requirements:
-			print(f'{BLU}> sending', requirement, RST)
+			if VERBOSE:
+				print(f'{BLU}> sending', requirement, RST)
 
 			# INFORM THE SERVER THE LENGTH OF THE FILE NAME AND SIZE OF THE FILE TO RECEIVE
 			file_size			= os.path.getsize( requirement )
 			file_name_length	= len(requirement)
 			file_struct			= struct.pack('i i i', 0, file_name_length, file_size)
 
-			print(f'{BLU}> filesize = {file_size}, file name length = {file_name_length}, sent as {file_struct}', RST)
+			if VERBOSE:
+				print(f'{BLU}> filesize = {file_size}, file name length = {file_name_length}, sent as {file_struct}', RST)
 			sd.send( file_struct )
 			
 			file			= open(requirement, 'rb')
@@ -196,24 +197,21 @@ def read_option_flags():
 		for opt, arg in opts:
 			# HELP ( HOW TO USE )
 			if opt == '-h':
-				print('usage: rake-p.py -i <ip address> -r <rakefile>')
+				print('usage: rake-p.py -r <rakefile>')
 				sys.exit()
 			# IP ADDRESS
 			# RAKEFILE TO ANAYLSE
 			elif opt == '-r':
 				rakefile = arg
-			# PORT NUMBER
-			elif opt == "-p":
-				PORT_NUM = int(arg)
 			# VERBOSE - DEBUGGING
 			elif opt == "-v":
 				VERBOSE = True
 	except getopt.GetoptError:
-		print('usage: rakeserver.py -i <ip address> -r <rakefile>')
+		print('usage: rakeserver.py -r <rakefile>')
 		sys.exit(2)
 
 
-def parse_server_frame (mad_frame, sd):
+def parse_server_frame(mad_frame, sd):
 	'''
 	Given the MAD frame from the server and the socket descriptor, client
 	prepares to receive and indicate the exit status, stdout, stderr as well as
@@ -222,27 +220,27 @@ def parse_server_frame (mad_frame, sd):
 	'''
 	frame_data = struct.unpack('i i i i i', mad_frame)
 	exit_status 			= frame_data[0]
-	output_len 			= frame_data[1]
+	output_len 				= frame_data[1]
 	output_filesize 		= frame_data[2]
-	output_filename_length 		= frame_data[3]
-	error_len 			= frame_data[4]
+	output_filename_length 	= frame_data[3]
+	error_len 				= frame_data[4]
 		
-	print(f"< status:\n{exit_status}")
+	print(f"{GRN}status:{RST}\n{exit_status}")
 
 	if output_len > 0:
 		output = sd.recv( output_len ).decode("utf-8")
-		print("< stdout:")
+		print(f"{BLU}stdout:{RST}")
 		print(output, file=sys.stdout)
 	else:
-		print("< stdout:")
+		print(f"{BLU}stdout:{RST}")
 		print("", file=sys.stdout)
 
 	if error_len > 0:
 		err = sd.recv( error_len ).decode("utf-8")
-		print("< stderr:")
+		print(f"{RED}stderr:{RST}")
 		print(err, file=sys.stderr)
 	else:
-		print("< stderr:")
+		print(f"{RED}stderr:{RST}")
 		print("", file=sys.stderr)
 
 	# RECEIVING OUTPUT FILE
@@ -254,7 +252,7 @@ def parse_server_frame (mad_frame, sd):
 		file.write(output_file)
 		file.close()
 		
-		print(f"< output file name:\n{output_filename}")
+		print(f"output file name:\n{output_filename}")
 	
 	if exit_status != 0:
 		return True
@@ -265,7 +263,6 @@ def parse_server_frame (mad_frame, sd):
 
 
 def main():
-	global PORT_NUM
 	global VERBOSE
 	global rakefile 
 
@@ -275,20 +272,22 @@ def main():
 	if VERBOSE:
 		print('\n', 'Looking at this file:', rakefile)
 		
+	# GET LINES FROM RAKEFILE
 	string_list = fread(rakefile)
 	
 	###DEBUG###
 	if VERBOSE:
 		print('\nThis is what was in the file:\n', string_list, '\n')
 
+	# PARSE AND EXTRACT IMPORTANT INFO FROM EXTRACTED LINES
 	rake_dict = extract_info(string_list)
 	
 	###DEBUG###
 	if VERBOSE:
 		print('\nDictionary:','\n', rake_dict, '\n')
 	
-	hosts			= rake_dict['Hosts']
-	actionset_names	= get_action_set_names(rake_dict)
+	hosts			= rake_dict['Hosts']				# ALL HOSTS AND THEIR CORRESPONDING PORTS
+	actionset_names	= get_action_set_names(rake_dict)	# ACTIONSET NAME KEYS
 
 	if VERBOSE:
 		print(f"hosts = {hosts}")
@@ -305,7 +304,6 @@ def main():
 		total_actions		= len(rake_dict[ actionset ])
 		waiting_for_outputs = True
 		inputs 				= []
-
 
 		if VERBOSE:
 			print(GRN, "--------------------------------------------------------------------------------", RST)
@@ -324,25 +322,26 @@ def main():
 				if len(action) > 1: # HAS REQUIREMENT FILES
 					requirements = action[1].split()[1:]
 
+				host_to_exec = ('localhost' , rake_dict['Port'])
+				command = action[0]
+
 				#* IF ACTION IS REMOTE, THEN CHECK COST FROM EACH REMOTE SERVER
 				if action[0].find('remote-') == 0:
-					argument = action[0].split("remote-")[1]
+					command = action[0].split("remote-")[1]
 
-					cheapest_host = get_cheapest_host( hosts, argument, requirements) # cost simulateonusly
+					cheapest_host = get_cheapest_host( hosts, command, requirements)
+					host_to_exec = hosts[cheapest_host]
 
 					# EXECUTE ON CHEAPEST REMOTE HOST
-					print(f"{YEL} --- REMOTE EXECUTION --- {RST}")
-					sd = execute_on_server( hosts[cheapest_host] , argument , requirements )
-					print(f"{BLU}> {argument} {requirements}{RST}")
-					inputs.append(sd)
+					if VERBOSE:
+						print(f"{YEL} --- REMOTE EXECUTION --- {RST}")
 			
 				#* IF ACTION IS LOCAL, EXECUTE ON LOCAL SERVER
-				else:
+				elif VERBOSE:
 					print(f"{YEL} --- LOCAL EXECUTION --- {RST}")
-					sd = execute_on_server( ( 'localhost' , PORT_NUM ) , action[0], requirements )
-					print(f"{BLU}> {action[0]} {requirements}{RST}")
-					inputs.append(sd)
 
+				sd = execute_on_server( host_to_exec , command, requirements )
+				inputs.append(sd)
 				current_action += 1
 			
 			if inputs:
@@ -350,7 +349,6 @@ def main():
 				# READ FROM SERVER, WHILST CONNECTED
 				for sd in readable:
 					print(MAG, "----------------------------------------", RST)
-					print(MAG, f"from {sd.getpeername()}", RST)
 					
 					# SERVER TO CLIENT FRAME: EXIT STATUS, OUTPUT LENGTH, OUTPUT FILE SIZE
 					#                         OUTPUT FILE NAME LENGTH, ERROR LENGTH

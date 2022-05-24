@@ -82,30 +82,27 @@ typedef struct Rackfile
     ActionSet   actionSets[MAX_ACTIONSETS];    //! ERROR
 } Rackfile;
 
-
-char    rackfile_name[MAX_FILE_NAME];
-char    host[16];
-int     port_num = 12345;
-int     default_port;
-int     verbose = false;
-
 Rackfile rackfile;
 
 typedef struct HeaderToServer
 {
-    int	asking_for_cost;
-    int	message_length;	// COMMAND OR REQUIRED FILENAME LENGTH
-    int	n_required_files;
+    int		asking_for_cost;
+    int		message_length;			// COMMAND OR REQUIRED FILENAME LENGTH
+    int		n_required_files;
 } HeaderToServer;
 
 typedef struct HeaderFromServer
 {
-    int	exit_status;				// EXIT STATUS OF RUNNING COMMAND/ACTION
-    int	output_len;					// FILENAME LENGTH OF CREATED/MODIFIED FILE
-    int	output_filesize;			// LENGTH OF OUTPUT (STDOUT) OR CREATED/MODIFIED FILE SIZE
-    int	output_filename_len;		// FILENAME LENGTH OF CREATED/MODIFIED FILE
-    int	error_len;					// LENGTH OF OUTPUT (STDERR)
+    int		exit_status;			// EXIT STATUS OF RUNNING COMMAND/ACTION
+    int		output_len;				// FILENAME LENGTH OF CREATED/MODIFIED FILE
+    int		output_filesize;		// LENGTH OF OUTPUT (STDOUT) OR CREATED/MODIFIED FILE SIZE
+    int		output_filename_len;	// FILENAME LENGTH OF CREATED/MODIFIED FILE
+    int		error_len;				// LENGTH OF OUTPUT (STDERR)
 } HeaderFromServer;
+
+char    rackfile_name[MAX_FILE_NAME];
+int     default_port;
+int     verbose = false;
 
 
 // -------------------------------------------------------------------
@@ -159,11 +156,11 @@ char *get_last_word(char *string)
 {
     const char *delimiter = " ";
 
-    // Extract the first token
-    char *token = strtok(string, delimiter);
-    char *last_word = NULL;
+    // EXTRACT THE FIRST TOKEN
+    char *token		= strtok(string, delimiter);
+    char *last_word	= NULL;
     
-    // loop through the string to extract all other tokens
+    // LOOP THROUGH THE STRING TO EXTRACT ALL OTHER TOKENS
     while( token != NULL ) 
     {
         last_word = token;
@@ -205,41 +202,6 @@ bool starts_with(char *string, char *substring)
 
 
 /**
- * @brief   (Debugging purposes) 
- *          For each anaylsed file:
- *           - Print port number
- *           - Print all host(s)
- *           - Print all actionset(s)
- * 
- */
-void debug_rackfile()
-{
-    // HOST(S) + PORT NUMBER ( host:port )
-    printf("hosts:\n");
-    for (int h=0 ; h<rackfile.nHosts ; h++)
-        printf(" - %s:%i\n", rackfile.hosts[h].host, rackfile.hosts[h].port);
-
-    // ACTIONSETS
-    for (int i=0 ; i<rackfile.nActionSets ; i++)
-    {
-        printf("%s:\n", rackfile.actionSets[i].actionSetName);
-        for (int a=0 ; a<rackfile.actionSets[i].nActions ; a++)
-        {
-            printf(" - (%s)\t|%s|\n", rackfile.actionSets[i].actions[a].isRemote ? "true" : "false", rackfile.actionSets[i].actions[a].action);
-            if (rackfile.actionSets[i].actions[a].nRequiredFiles > 0)
-            {
-                printf("  required files:\n");
-                for (int r=0 ; r<rackfile.actionSets[i].actions[a].nRequiredFiles ; r++)
-                    printf("   - %s\n", rackfile.actionSets[i].actions[a].requiredFiles[r]);
-            }
-        }
-    }
-
-    printf("\n\n");
-}
-
-
-/**
  * @brief   Analyse and process supposedly Rakefile(s) :
  *           - extract port number
  *           - extract host(s)
@@ -259,9 +221,10 @@ void parse_file(char *filename)
     if (fp != NULL) 
     {
         strcpy(rackfile.filename, filename);
-        int action_set_ind = 0;
-        int action_ind    = 0;
-        int *n_action_set = &rackfile.nActionSets;
+        int action_set_ind	= 0;
+        int action_ind		= 0;
+        int *n_action_set	= &rackfile.nActionSets;
+
         while (fgets(line, sizeof(line), fp) != NULL) 
         {
             // STORE NON-EMPTY LINES
@@ -276,18 +239,19 @@ void parse_file(char *filename)
                 if (starts_with(line, "PORT"))
                 {
                     char *last_word = NULL;
-                    last_word = get_last_word(line);
-                    default_port = atoi(last_word);
+                    last_word		= get_last_word(line);
+                    default_port	= atoi(last_word);
                 }
                 // IF LINE STARTS WITH HOSTS, GET AND STORE HOST(S)
                 else if (starts_with(line, "HOSTS"))
                 {
-                    int len = strlen("HOSTS = ");
-                    char *substring = line;
-                    substring += len;
+                    int len			= strlen("HOSTS = ");
+                    char *substring	= line;
+                    
+					substring += len;
 
-                    const char *delimiter = " ";
-                    char *token = strtok(substring, delimiter);
+                    const char *delimiter	= " ";
+                    char *token				= strtok(substring, delimiter);
                     
                     // LOOP THROUGH THE STRING TO EXTRACT ALL OTHER TOKENS
                     int *nHosts = &rackfile.nHosts;
@@ -343,8 +307,8 @@ void parse_file(char *filename)
                             if (starts_with(line, "remote-"))
                             {
                                 rackfile.actionSets[ action_set_ind ].actions[action_ind].isRemote = true;
-                                int len = strlen("remote-");
-                                char *substring = line;
+                                int len			= strlen("remote-");
+                                char *substring	= line;
                                 substring += len;
                                 strcpy(rackfile.actionSets[ action_set_ind ].actions[action_ind++].action, substring);
                             }
@@ -369,14 +333,14 @@ void parse_file(char *filename)
 							if (strcmp(line, "") == 0)
 								continue;
 
-                            int len = strlen("requires");
-                            char *substring = line;
+                            int len			= strlen("requires");
+                            char *substring	= line;
                             substring += len;
 
-                            const char *delimiter = " ";
-                            char *token = strtok(substring, delimiter);
+                            const char *delimiter	= " ";
+                            char *token				= strtok(substring, delimiter);
                             
-                            // loop through the string to extract all other tokens
+                            // LOOP THROUGH THE STRING TO EXTRACT ALL OTHER TOKENS
                             int *n_required_files = &rackfile.actionSets[ action_set_ind ].actions[action_ind].nRequiredFiles;
                             while ( token != NULL ) 
                             {
@@ -426,8 +390,8 @@ int establish_socket(char *host, int port)
 
     // memset(&server, 0, sizeof(server));
     memcpy(&server.sin_addr, hp->h_addr, hp->h_length);
-    server.sin_family  = hp->h_addrtype;
-	server.sin_port = htons( port );
+    server.sin_family	= hp->h_addrtype;
+	server.sin_port		= htons( port );
 
     //  CONNECT TO SERVER
     if (connect(sd, (struct sockaddr *)&server, sizeof(server)) < 0) 
@@ -440,10 +404,6 @@ int establish_socket(char *host, int port)
 }
 
 
-// '''
-// Function that performes actions that require the server. 
-// Receives the action and a list of the necessary files.
-// '''
 /**
  * @brief 	Performs an action on a remote specified server.
  * 
@@ -458,7 +418,9 @@ void send_command_to_server(int sd, Action action)
 	header.asking_for_cost 	= 0;
 	header.message_length 	= strlen(action.action);
 	header.n_required_files	= action.nRequiredFiles;
-	printf("> (%i, %i, %i)\n",header.asking_for_cost, header.message_length, header.n_required_files);
+	
+	if (verbose)
+		printf("> (%i, %i, %i)\n",header.asking_for_cost, header.message_length, header.n_required_files);
 	
 	if (write(sd, &header, sizeof(header)) < 0) 
 	{
@@ -496,17 +458,14 @@ void send_command_to_server(int sd, Action action)
 
 
 			// INFORM THE SERVER THE SIZE OF THE FILE TO RECEIVE AND THE FILENAME LENGTH
-			printf("%s> sending '%s'%s\n", BLU, action.requiredFiles[i], RST);
-			HeaderToServer req_file_header;
-			req_file_header.asking_for_cost = 0;
-			req_file_header.message_length = strlen(action.requiredFiles[i]);
-			req_file_header.n_required_files = n_bytes;
+			if (verbose)
+				printf("%s> sending '%s'%s\n", BLU, action.requiredFiles[i], RST);
 
-			printf("%s> cost=%i, len=%i, size=%i%s\n", BLU, 
-				req_file_header.asking_for_cost, 
-				req_file_header.message_length,
-				n_bytes, RST);
-			
+			HeaderToServer req_file_header;
+			req_file_header.asking_for_cost		= 0;
+			req_file_header.message_length		= strlen(action.requiredFiles[i]);
+			req_file_header.n_required_files	= n_bytes;
+
 			if (write(sd, &req_file_header, sizeof(req_file_header)) < 0) 
 			{
 				perror("filsize:");
@@ -537,13 +496,13 @@ void send_command_to_server(int sd, Action action)
  */
 int get_cheapest_host(char *argument)
 {
-	int cheapest_host = 0;
-	int lowest_cost = -1;
+	int cheapest_host	= 0;
+	int lowest_cost		= -1;
 
 	HeaderToServer header;
-	header.asking_for_cost = 1;
-	header.message_length = strlen(argument);
-	header.n_required_files = 0;
+	header.asking_for_cost	= 1;
+	header.message_length	= strlen(argument);
+	header.n_required_files	= 0;
 
 	for (int h=0 ; h<rackfile.nHosts ; h++)
 	{
@@ -562,12 +521,13 @@ int get_cheapest_host(char *argument)
 		// REMEMBER THE REMOTE HOST RETURNING THE LOWEST COST TO RUN THE COMMAND
 		if (cost < lowest_cost || lowest_cost == -1)
 		{
-			lowest_cost = cost;
-			cheapest_host = h;
+			lowest_cost		= cost;
+			cheapest_host	= h;
 		}
 	}
 	return cheapest_host;
 }
+
 
 bool read_sockets(int *sds, int max_connections, fd_set read_fd_set, int *n_connected, int *outputs_received)
 {
@@ -588,19 +548,19 @@ bool read_sockets(int *sds, int max_connections, fd_set read_fd_set, int *n_conn
 			int output_filename_len 	= response.output_filename_len;
 			int error_len 				= response.error_len;
 
-			printf("< status:\n%d\n", exit_status);
+			printf("%sstatus:%s\n%d\n", GRN, RST, exit_status);
 			
 			// REPORT STDOUT
 			if (output_len > 0)
 			{
 				char output[ output_len ];
 				read(sds[j], &output , output_len);
-				printf("< stdout:\n");
+				printf("%sstdout:%s\n", BLU, RST);
 				fprintf(stdout, "%s\n", output);
 			}
 			else
 			{
-				printf("< stdout:\n");
+				printf("%sstdout:%s\n", BLU, RST);
 				fprintf(stdout,"\n");
 			}
 
@@ -609,12 +569,12 @@ bool read_sockets(int *sds, int max_connections, fd_set read_fd_set, int *n_conn
 			{
 				char error[ error_len ];
 				read(sds[j], &error , error_len);
-				printf("< stderr:\n");
+				printf("%sstderr:%s\n", RED, RST);
 				fprintf(stderr, "%s\n", error);
 			}
 			else
 			{
-				printf("< stderr:\n");
+				printf("%sstderr:%s\n", RED, RST);
 				fprintf(stderr,"\n");
 			}
 
@@ -628,7 +588,7 @@ bool read_sockets(int *sds, int max_connections, fd_set read_fd_set, int *n_conn
 				int bytes = read(sds[j], &filename , output_filename_len);
 				filename[bytes] = '\0';
 
-				int fp = open(filename, O_WRONLY | O_CREAT | O_TRUNC);
+				int fp = open(filename, O_WRONLY | O_CREAT | O_TRUNC , 0777);
 				write(fp, file_data, output_filesize);
 				close(fp);
 				
@@ -666,36 +626,6 @@ void close_all_connections(int *sds, int max_connections)
 	}
 }
 
-// void start_server_communication(bool is_remote, char action[])
-// {
-// 	char 	*host 	= NULL;
-// 	int 	port 	= default_port;
-// 	strncpy(host, "localhost", strlen("localhost"));
-
-// 	//* IF ACTION IS REMOTE, THEN CHECK COST FROM EACH REMOTE SERVER
-// 	if (!is_remote)
-// 	{
-// 		int cheapest_host = get_cheapest_host( action );
-// 		strncpy(host, rackfile.hosts[cheapest_host].host, strlen(rackfile.hosts[cheapest_host].host));
-// 		port = rackfile.hosts[cheapest_host].port;
-
-// 		// EXECUTE ON CHEAPEST REMOTE HOST
-// 		printf("%s --- REMOTE EXECUTION --- \n%s", YEL, RST);
-// 		n_connected++;
-// 		add_socket_connection(sds, max_connections, sd);
-// 	}
-
-// 	send_command_to_server(sd, action);
-// 	//  IF ACTION IS LOCAL, EXECUTE ON LOCAL SERVER
-// 	else
-// 	{
-// 		printf("%s --- LOCAL EXECUTION --- \n%s", YEL, RST);
-// 		int sd = establish_socket("localhost", default_port);
-// 		send_command_to_server(sd, *current_action);
-// 		n_connected++;
-// 		add_socket_connection(sds, max_connections, sd);
-// 	}
-// }
 
 void add_socket_connection(int *sds, int max_connections, int sd)
 {
@@ -714,27 +644,18 @@ void add_socket_connection(int *sds, int max_connections, int sd)
 int main(int argc, char *argv[])
 {
     int opt;
-    strcpy(host, "localhost");
     strcpy(rackfile_name, "Rakefile");
-    while ((opt = getopt(argc, argv, "vhi:p:r:")) != -1) 
+    while ((opt = getopt(argc, argv, "vhr:")) != -1) 
     {
         switch (opt) 
         {
             // HELP ( HOW TO USE )
             case 'h':
-                printf("usage: ./rake-c -i <ip address> -p <port number> -r <rakefile>'\n");
+                printf("usage: ./rake-c -r <rakefile>'\n");
                 break;
             // RAKEFILE TO ANAYLSE
             case 'r':
                 strcpy(rackfile_name, optarg);
-                break;
-            // IP ADDRESS
-            case 'i':
-                strcpy(host, optarg);
-                break;
-            // PORT NUMBER
-            case 'p':
-                port_num = atoi(optarg);
                 break;
             // verbose - DEBUGGING
             case 'v':
@@ -747,25 +668,17 @@ int main(int argc, char *argv[])
 
     // EXTRACT INFO FROM "Rakefile" IN CURRENT DIRECTORY
     parse_file(rackfile_name);
-
-    // DEBUGGING
-    if (verbose)
-    {
-        printf(YEL);
-        debug_rackfile();
-        printf(RST);
-    }
 	
-	bool error_in_actionset = false;
 	struct timeval timeout;
-	timeout.tv_usec = 1000;	// wait up to 0.1 seconds
+	timeout.tv_usec			= 1000;	// wait up to 0.1 seconds
+	bool error_in_actionset	= false;
 
 	for (int i=0 ; i<rackfile.nActionSets && !error_in_actionset; i++)
 	{
-		int action_n = 0;
-		int outputs_received = 0;
-		int total_actions = rackfile.actionSets[i].nActions;
-		bool still_waiting_for_outputs = true;
+		int action_n				= 0;
+		int outputs_received		= 0;
+		int total_actions			= rackfile.actionSets[i].nActions;
+		bool waiting_for_outputs	= true;
 
 		fd_set read_fd_set;
 		int max_connections	= rackfile.actionSets[i].nActions + 1;
@@ -782,7 +695,7 @@ int main(int argc, char *argv[])
 		}
 
 		// KEEPS WAITING UNTIL ALL SERVERS HAVE RETURNED AN OUTPUT		
-		while (still_waiting_for_outputs)
+		while (waiting_for_outputs)
 		{
 			// RE-INIT CONNECTED SOCKETS
 			FD_ZERO(&read_fd_set);
@@ -798,30 +711,35 @@ int main(int argc, char *argv[])
 				if (verbose)
 					printf("%srunning %s%s\n", BLU, current_action->action, RST);
 
+				char *host	= NULL;
+				int port	= default_port;
+				
+				host = (char*) malloc(strlen("localhost"));
+				strcpy(host, "localhost");
+
 				// //* IF ACTION IS REMOTE, THEN CHECK COST FROM EACH REMOTE SERVER
 				if (current_action->isRemote)
 				{
-					int cheapest_host;
-					cheapest_host = get_cheapest_host( current_action->action ); // cost simulateonusly
+					int cheapest_host = get_cheapest_host( current_action->action );
+					port = rackfile.hosts[cheapest_host].port;
+					host = (char*) malloc(strlen( rackfile.hosts[cheapest_host].host ));
+					strcpy(host, rackfile.hosts[cheapest_host].host);
 
 					// EXECUTE ON CHEAPEST REMOTE HOST
-					printf("%s --- REMOTE EXECUTION --- \n%s", YEL, RST);
-					int sd = establish_socket(rackfile.hosts[cheapest_host].host, rackfile.hosts[cheapest_host].port);
-					send_command_to_server(sd, *current_action);
-					n_connected++;
-					add_socket_connection(sds, max_connections, sd);
+					if (verbose)
+						printf("%s --- REMOTE EXECUTION --- \n%s", YEL, RST);
 				}
-			
 				//  IF ACTION IS LOCAL, EXECUTE ON LOCAL SERVER
 				else
 				{
-					printf("%s --- LOCAL EXECUTION --- \n%s", YEL, RST);
-					int sd = establish_socket("localhost", default_port);
-					send_command_to_server(sd, *current_action);
-					n_connected++;
-					add_socket_connection(sds, max_connections, sd);
+					if (verbose)
+						printf("%s --- LOCAL EXECUTION --- \n%s", YEL, RST);
 				}
 
+				int sd = establish_socket(host, port);
+				send_command_to_server(sd, *current_action);
+				add_socket_connection(sds, max_connections, sd);
+				n_connected++;
 				action_n++;
 			}
 			
@@ -834,7 +752,7 @@ int main(int argc, char *argv[])
 					if (read_sockets(sds, max_connections, read_fd_set, &n_connected, &outputs_received))
 						error_in_actionset = true;
 					if (outputs_received >= total_actions)
-						still_waiting_for_outputs = false;
+						waiting_for_outputs = false;
 				}
 			}
 				
@@ -855,5 +773,4 @@ int main(int argc, char *argv[])
     return EXIT_SUCCESS;
 }
 
-// cc -std=c99 -Wall -Werror -o client-c client-c.c && ./client-c
 // cc -std=c99 -Wall -Werror -o rake-c rake-c.c && ./rake-c

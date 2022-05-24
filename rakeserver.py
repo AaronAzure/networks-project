@@ -6,18 +6,18 @@
 import shutil, socket, struct, subprocess, sys
 import getopt, os, random, tempfile, time
 
-HOST = 'localhost'
-PORT_NUM = 12345
-VERBOSE = False
+HOST		= 'localhost'
+PORT_NUM	= 12345
+VERBOSE		= False
 
-BOLD = "\033[1;30m"
-RED = "\033[1;31m"
-GRN = "\033[1;32m"
-YEL = "\033[1;33m"
-BLU = "\033[1;34m"
-MAG = "\033[1;35m"
-CYN = "\033[1;36m"
-RST = "\033[0m"
+BOLD 	= "\033[1;30m"
+RED 	= "\033[1;31m"
+GRN 	= "\033[1;32m"
+YEL 	= "\033[1;33m"
+BLU 	= "\033[1;34m"
+MAG 	= "\033[1;35m"
+CYN 	= "\033[1;36m"
+RST 	= "\033[0m"
 
 def send_cost(client):
 	'''
@@ -61,8 +61,9 @@ def get_req_files(requirement_length, client, latest_update):
 		# DECRYPT HEADER
 		if req_file_data:
 			req_file_header = struct.unpack('i i i', req_file_data)
-			print(f"{YEL}{req_file_header}{RST}")
-			# asking_for_cost = bool(header[0])
+			if VERBOSE:
+				print(f"{YEL}{req_file_header}{RST}")
+			
 			filename_length = req_file_header[1]
 			file_to_recv_size = req_file_header[2]
 
@@ -70,9 +71,12 @@ def get_req_files(requirement_length, client, latest_update):
 			
 			# GET THE NAME OF THE FILE TO BE RECEIVED FROM THE CLIENT
 			filename = client.recv( filename_length ).decode("utf-8")
-			print(f"--|{filename}|--")
+
+			if VERBOSE:
+				print(f"--|{filename}|--")
+				print(f"creating file {filename}")
 			
-			print(f"creating file {filename}")
+			# CREATE FILE AND WRITE DATA TO IT
 			file = open(filename, "wb")
 			file.write( file_data )
 			file.close()
@@ -103,14 +107,15 @@ def send_output(execution, client, temp_dir, output_file):
 		filename_length = len(output_file)
 
 	header = struct.pack('i i i i i', exit_status, len(output), filesize, filename_length, len(err))
+
 	print(f"> stat={execution.returncode}, output len={len(output)}, file size={filesize}, file name length={filename_length}, err len={len(err)}")
 	client.send(header)
 
-	print(f"> out={output}")
+	print(f"{BLU}> out={RST}{output}")
 	if len(output) > 0:
 		client.send(bytes(output, "utf-8"))
 		
-	print(f"> err={err}")
+	print(f"{RED}> err={RST}{err}")
 	if len(err) > 0:
 		client.send(bytes(err, "utf-8"))
 
@@ -179,7 +184,7 @@ def main():
 	
 	if VERBOSE:
 		print("IP address = " + HOST)
-	print(MAG + "listening on port=" + str(PORT_NUM) + RST)
+	print(MAG + "listening on port " + str(PORT_NUM) + RST)
 	print("---------------------------------------------")
 
 	# Listen for incoming connections
@@ -209,11 +214,13 @@ def main():
 
 				# CHILD PROCESS DEALS WITH CURRENT ACTION
 				if pid == 0:
-					time.sleep(os.getpid() % 5 * 0.2)
+					time.sleep(os.getpid() % 5 * 0.1)
 
 					argument = client.recv( command_length ).decode("utf-8")	#! BLOCKING
 				
-					print(f"< {header}")
+					if VERBOSE:
+						print(f"< {header}")
+
 					latest_update = 0.0		# STORES TIME OF LATEST UPDATED FILE.
 
 					if VERBOSE:
@@ -222,9 +229,10 @@ def main():
 					server_dir = os.getcwd()	# SERVER DIRECTORY	
 					temp_dir = tempfile.mkdtemp()	# TEMPORARY DIRECTORY FOR ALL FILES.
 					os.chdir(temp_dir)
+					if VERBOSE:
+						print(f"{BLU} - TEMPORARY DIRECTORY: {temp_dir} - {RST}")
 
 					if requirement_length > 0:	# THERE ARE REQUIREMENTS
-						print(f"{BLU} - TEMPORARY DIRECTORY: {temp_dir} - {RST}")
 						latest_update = get_req_files(requirement_length, client, latest_update)
 
 					if VERBOSE:
@@ -241,7 +249,6 @@ def main():
 					
 					os.chdir(server_dir)
 					if temp_dir:
-						print(f"{YEL} - DELETING FILES - {RST}")
 						shutil.rmtree( temp_dir )
 
 					client.close()
