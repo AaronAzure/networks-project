@@ -1,13 +1,11 @@
 # CITS3003 2022 Project, written by:
 # Muhammad Maaz Ahmed	(22436686)
-# Aaron Wee				(22702446)
-# Daniel Ling			(22896002)
+# Aaron Wee		(22702446)
+# Daniel Ling		(22896002)
 
 import shutil, socket, struct, subprocess, sys
 import getopt, os, random, tempfile
-import time #! DELETE
 
-# port number
 HOST = 'localhost'
 PORT_NUM = 12345
 SOCKET_NUM = 0
@@ -39,7 +37,6 @@ def find_output_file(directory, latest_update):
 	the working directory. @returns the file whose modification time exceeds latest_update.
 	None otherwise.
 	''' 
-	
 	if latest_update == 0.0:	# NO FILE IN TEMPORARY DIRECTORY.
 		return None
 		
@@ -58,10 +55,8 @@ def get_req_files(requirement_length, client, latest_update):
 	modification time of any files in the working directory. @returns the latest
 	modification time of the last modified file in the working directory.
 	'''
-
 	# RECEIVE EACH REQUIRED FILE
 	for i in range(requirement_length):
-	# for required_file in requirements:
 		req_file_data = client.recv(12)     #! BLOCKING
 
 		# DECRYPT HEADER
@@ -98,13 +93,13 @@ def send_output(execution, client, temp_dir, output_file):
 	file to be sent back to the client, if it exists. @returns exit status of execution.
 	'''
 	# PREPARING TO SEND SERVER TO CLIENT HEADER.
-	exit_status = execution.returncode			# OUTPUT RETURN CODE.
+	exit_status = execution.returncode		# OUTPUT RETURN CODE.
 	output = execution.stdout.decode("utf-8")	# OUTPUT.
-	filesize = 0								# OUTPUT FILE SIZE.
-	filename_length = 0							# OUTPUT FILE NAME LENGTH.
+	filesize = 0					# OUTPUT FILE SIZE.
+	filename_length = 0				# OUTPUT FILE NAME LENGTH.
 	err = execution.stderr.decode("utf-8")		# OUTPUT ERROR MESSAGE.
 	
-	if output_file != None:			# OUTPUT FILE EXISTS.
+	if output_file != None:				# OUTPUT FILE EXISTS.
 		filesize = os.path.getsize(output_file)
 		filename_length = len(output_file)
 
@@ -120,7 +115,7 @@ def send_output(execution, client, temp_dir, output_file):
 	if len(err) > 0:
 		client.send(bytes(err, "utf-8"))
 
-	if output_file != None:			# OUTPUT FILE EXISTS.
+	if output_file != None:				# OUTPUT FILE EXISTS.
 		
 		file = open(output_file, 'rb')
 		reading_file = file.read()
@@ -186,7 +181,6 @@ def main():
 	sd.bind((HOST, PORT_NUM))
 	
 	SOCKET_NUM = 0
-	# local_ip = socket.gethostbyname("localhost")
 	if VERBOSE:
 		print("IP address = " + HOST)
 	print(MAG + "listening on port=" + str(PORT_NUM) + ", sd=" + str(SOCKET_NUM) + RST)
@@ -230,13 +224,11 @@ def main():
 					if VERBOSE:
 						print(f'{GRN}< argument:', argument, RST)
 					
-					# SERVER DIRECTORY
 					server_dir = os.getcwd()	# SERVER DIRECTORY	
 					temp_dir = tempfile.mkdtemp()	# TEMPORARY DIRECTORY FOR ALL FILES.
 					os.chdir(temp_dir)
 
-					# THERE ARE REQUIREMENTS
-					if requirement_length > 0:
+					if requirement_length > 0:	# THERE ARE REQUIREMENTS
 						print(f"{BLU} - TEMPORARY DIRECTORY: {temp_dir} - {RST}")
 						latest_update = get_req_files(requirement_length, client, latest_update)
 
@@ -249,13 +241,10 @@ def main():
 					# INFORM CLIENT OF ANY OUTPUT FILES.
 					output_file = find_output_file(temp_dir, latest_update)
 
-					# SENDING THE OUTPUT BACK TO THE CLIENT.
+					# SENDING THE OUTPUT BACK TO THE CLIENT, ALSO GETTING exit_status.
 					exit_status = send_output(execution, client, temp_dir, output_file)
 					
-					# CHANGE BACK TO ORIGINAL DIRECTORY
 					os.chdir(server_dir)
-
-					# DELETE ANY TEMP DIRECTORIES
 					if temp_dir:
 						print(f"{YEL} - DELETING FILES - {RST}")
 						shutil.rmtree( temp_dir )
