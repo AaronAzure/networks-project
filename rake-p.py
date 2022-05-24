@@ -24,12 +24,12 @@ def fread(filename):
 	'''
 	Function that receives a filename and then returns important, stripped list of lines.
 	'''
-	rfile = open(filename, 'r')
-	lines = rfile.readlines()
+	rfile	= open(filename, 'r')
+	lines	= rfile.readlines()
 	rfile.close()
 	
-	count = 0
-	result = []
+	count 	= 0
+	result 	= []
 	for line in lines:
 
 		# skip empty lines
@@ -44,8 +44,8 @@ def fread(filename):
 		else:
 			result.append(line)
 		
-		result[count] = result[count].rstrip('\n')	# strip newline
-		result[count] = result[count].rstrip()		# strip trailing whitespaces
+		result[count]	= result[count].rstrip('\n')	# strip newline
+		result[count]	= result[count].rstrip()		# strip trailing whitespaces
 		count += 1
 	return result
 
@@ -55,11 +55,11 @@ def extract_info(items):
 	Extract important information from @param items into a dictionary (mapping) format.	
 	'''
 	# Dictionary holding the port number, a 1D array of hosts and a 2D arrays of action sets.
-	item_dictionary = {'Port': '', 'Hosts': []}
+	item_dictionary		= {'Port': '', 'Hosts': []}
 	
 	# variables for the action set
-	count = 1
-	current_actionset = ''
+	current_actionset	= ''
+	count				= 1
 	
 	global DEFAULT_PORT
 	for item in items:
@@ -109,8 +109,8 @@ def get_action_set_names(rdictionary):
 	'''
 	Return actionsets headers.
 	'''
-	actionsets = []			# ACTIONSET KEYS LIST.
-	action_failure = False		# IF TRUE, AN ACTION HAS FAILED. DO NOT EXECUTE NEXT ACTIONSET.
+	actionsets		= []		# ACTIONSET KEYS LIST.
+	action_failure	= False		# IF TRUE, AN ACTION HAS FAILED. DO NOT EXECUTE NEXT ACTIONSET.
 	
 	for key in rdictionary:
 		if key.find('Action Set ') >= 0:
@@ -124,7 +124,6 @@ def execute_on_server(server_port_tuple, argument, requirements=[]):
 	Function that performes actions that require the server. 
 	Receives the action and a list of the necessary files.
 	'''
-	
 	sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	sd.connect( server_port_tuple )
 	
@@ -140,15 +139,15 @@ def execute_on_server(server_port_tuple, argument, requirements=[]):
 			print(f'{BLU}> sending', requirement, RST)
 
 			# INFORM THE SERVER THE LENGTH OF THE FILE NAME AND SIZE OF THE FILE TO RECEIVE
-			file_size = os.path.getsize( requirement )
-			file_name_length = len(requirement)
-			file_struct = struct.pack('i i i', 0, file_name_length, file_size)
+			file_size			= os.path.getsize( requirement )
+			file_name_length	= len(requirement)
+			file_struct			= struct.pack('i i i', 0, file_name_length, file_size)
 
 			print(f'{BLU}> filesize = {file_size}, file name length = {file_name_length}, sent as {file_struct}', RST)
 			sd.send( file_struct )
 			
-			file = open(requirement, 'rb')
-			file_to_send = file.read()
+			file			= open(requirement, 'rb')
+			file_to_send	= file.read()
 			sd.send( file_to_send )
 
 			sd.send( bytes(requirement, 'utf-8') )				# SENDING FILE NAME.
@@ -158,21 +157,15 @@ def execute_on_server(server_port_tuple, argument, requirements=[]):
 	return sd
 	
 
-def get_cheapest_host(hosts, argument, requirements=None):
+def get_cheapest_host(hosts, argument, requirements=[]):
 	'''
 	Simultaneously get the cost of each remote host, 
 	and report back the remote host with the lowest cost
 	'''
-	if requirements != None:
-		argument += ' Requirements: '
-		for requirement in requirements:
-			argument += requirement
-			argument += ' '
 	
-	frame = struct.pack('i i i', 1, len(argument), 0)
-
-	cheapest_host = 0
-	lowest_cost = float('inf')
+	cheapest_host	= 0
+	lowest_cost		= float('inf')
+	frame			= struct.pack('i i i', 1, len(argument), len(requirements))
 
 	for i in range(len(hosts)):
 		sd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -181,14 +174,14 @@ def get_cheapest_host(hosts, argument, requirements=None):
 		sd.send( frame )
 
 		# RECEIVE THE COST FOR THE COMMAND
-		reply = sd.recv(4)
-		reply = struct.unpack('i', reply)
-		cost = reply[0]
+		reply	= sd.recv(4)
+		reply	= struct.unpack('i', reply)
+		cost	= reply[0]
 		
 		# REMEMBER THE REMOTE HOST RETURNING THE LOWEST COST TO RUN THE COMMAND
 		if cost < lowest_cost:
-			lowest_cost = cost
-			cheapest_host = i
+			lowest_cost		= cost
+			cheapest_host	= i
 
 	return cheapest_host
 	
@@ -241,8 +234,8 @@ def main():
 	if VERBOSE:
 		print('\nDictionary:','\n', rake_dict, '\n')
 	
-	hosts = rake_dict['Hosts']
-	actionset_names = get_action_set_names(rake_dict)
+	hosts			= rake_dict['Hosts']
+	actionset_names	= get_action_set_names(rake_dict)
 
 	if VERBOSE:
 		print(f"hosts = {hosts}")
@@ -254,19 +247,19 @@ def main():
 	error_in_actionset = False
 	for actionset in actionset_names:
 
-		current_action = 0
-		outputs_received = 0
-		total_actions = len(rake_dict[ actionset ])
-		still_waiting_for_outputs = True
+		current_action		= 0
+		outputs_received	= 0
+		total_actions		= len(rake_dict[ actionset ])
+		waiting_for_outputs = True
+		inputs 				= []
 
-		inputs = []
 
 		if VERBOSE:
 			print(GRN, "--------------------------------------------------------------------------------", RST)
 			print('starting', actionset)
 			print(f"{GRN}{rake_dict[actionset]}{RST}")
 
-		while still_waiting_for_outputs:
+		while waiting_for_outputs:
 			if current_action < total_actions:
 				action = rake_dict[actionset][current_action]
 
@@ -339,8 +332,8 @@ def main():
 
 						# RECEIVING OUTPUT FILE
 						if output_filesize > 0 and output_filename_length > 0:			
-							output_file = sd.recv( output_filesize )
-							output_filename = sd.recv( output_filename_length ).decode("utf-8")
+							output_file		= sd.recv( output_filesize )
+							output_filename	= sd.recv( output_filename_length ).decode("utf-8")
 
 							file = open(output_filename, 'wb')
 							file.write(output_file)
@@ -357,7 +350,7 @@ def main():
 					
 					outputs_received += 1
 					if outputs_received >= total_actions:
-						still_waiting_for_outputs = False
+						waiting_for_outputs = False
 					
 				for sd in exceptional:
 					error_in_actionset = True
