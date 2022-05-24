@@ -1,11 +1,10 @@
 # CITS3002 2022 Project, written by:
 # Muhammad Maaz Ahmed	(22436686)
-# Aaron Wee				(22702446)
-# Daniel Ling			(22896002)
+# Aaron Wee		(22702446)
+# Daniel Ling		(22896002)
 
 import select, shutil, socket, struct, subprocess, sys
-import getopt, os
-import time #! DELETE
+import getopt, os, time
 
 BOLD = "\033[1;30m"
 RED = "\033[1;31m"
@@ -16,9 +15,11 @@ MAG = "\033[1;35m"
 CYN = "\033[1;36m"
 RST = "\033[0m"
 
-DEFAULT_PORT = 12345
+############ HARDCODE, GET RID OF THIS LATER ##################################
+PORT_NUM = 12345
 VERBOSE = False
 rakefile  = 'Rakefile'	# Will be used to store rakefile.
+#################################################################################
 
 def fread(filename):
 	'''
@@ -61,12 +62,10 @@ def extract_info(items):
 	current_actionset	= ''
 	count				= 1
 	
-	global DEFAULT_PORT
 	for item in items:
 		# LINE STARTS WITH PORT, SO GET AND STORE DEFAULT PORT NUMBER.
 		if item.find('PORT') >= 0:
-			DEFAULT_PORT = int(item.split('= ', 1)[1])
-			item_dictionary['Port'] = DEFAULT_PORT
+			item_dictionary['Port'] = int(item.split('= ', 1)[1])
 		
 		# LINE STARTS WITH HOSTS, SO GET AND STORE HOST(S).
 		elif item.find('HOSTS') >= 0:
@@ -192,16 +191,20 @@ def read_option_flags():
 	global rakefile 
 
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "vhr:")
+		opts, args = getopt.getopt(sys.argv[1:], "vhi:p:r:")
 		
 		for opt, arg in opts:
 			# HELP ( HOW TO USE )
 			if opt == '-h':
 				print('usage: rake-p.py -i <ip address> -r <rakefile>')
 				sys.exit()
+			# IP ADDRESS
 			# RAKEFILE TO ANAYLSE
 			elif opt == '-r':
 				rakefile = arg
+			# PORT NUMBER
+			elif opt == "-p":
+				PORT_NUM = int(arg)
 			# VERBOSE - DEBUGGING
 			elif opt == "-v":
 				VERBOSE = True
@@ -209,10 +212,60 @@ def read_option_flags():
 		print('usage: rakeserver.py -i <ip address> -r <rakefile>')
 		sys.exit(2)
 
+
+def parse_server_frame (mad_frame, sd):
+	'''
+	Given the MAD frame from the server and the socket descriptor, client
+	prepares to receive and indicate the exit status, stdout, stderr as well as
+	any output file. If exit status != 0, then return True to indicate an 
+	error has occured. False otherwise.
+	'''
+	frame_data = struct.unpack('i i i i i', mad_frame)
+	exit_status 			= frame_data[0]
+	output_len 			= frame_data[1]
+	output_filesize 		= frame_data[2]
+	output_filename_length 		= frame_data[3]
+	error_len 			= frame_data[4]
+		
+	print(f"< status:\n{exit_status}")
+
+	if output_len > 0:
+		output = sd.recv( output_len ).decode("utf-8")
+		print("< stdout:")
+		print(output, file=sys.stdout)
+	else:
+		print("< stdout:")
+		print("", file=sys.stdout)
+
+	if error_len > 0:
+		err = sd.recv( error_len ).decode("utf-8")
+		print("< stderr:")
+		print(err, file=sys.stderr)
+	else:
+		print("< stderr:")
+		print("", file=sys.stderr)
+
+	# RECEIVING OUTPUT FILE
+	if output_filesize > 0 and output_filename_length > 0:			
+		output_file = sd.recv( output_filesize )
+		output_filename = sd.recv( output_filename_length ).decode("utf-8")
+
+		file = open(output_filename, 'wb')
+		file.write(output_file)
+		file.close()
+		
+		print(f"< output file name:\n{output_filename}")
+	
+	if exit_status != 0:
+		return True
+	return False
+
+
 ####################################################################################################
 
+
 def main():
-	global DEFAULT_PORT
+	global PORT_NUM
 	global VERBOSE
 	global rakefile 
 
@@ -243,7 +296,7 @@ def main():
 		start_time = time.time()
 	
 
-	# PERFORM ACTION ON SERVER ( HOSTS )
+	# PERFORM ACTION ON SERVER 
 	error_in_actionset = False
 	for actionset in actionset_names:
 
@@ -286,7 +339,7 @@ def main():
 				#* IF ACTION IS LOCAL, EXECUTE ON LOCAL SERVER
 				else:
 					print(f"{YEL} --- LOCAL EXECUTION --- {RST}")
-					sd = execute_on_server( ( 'localhost' , DEFAULT_PORT ) , action[0], requirements )
+					sd = execute_on_server( ( 'localhost' , PORT_NUM ) , action[0], requirements )
 					print(f"{BLU}> {action[0]} {requirements}{RST}")
 					inputs.append(sd)
 
@@ -299,51 +352,11 @@ def main():
 					print(MAG, "----------------------------------------", RST)
 					print(MAG, f"from {sd.getpeername()}", RST)
 					
-					exit_status = 1
-					
 					# SERVER TO CLIENT FRAME: EXIT STATUS, OUTPUT LENGTH, OUTPUT FILE SIZE
 					#                         OUTPUT FILE NAME LENGTH, ERROR LENGTH
 					mad_frame_server = sd.recv(20)
 					if mad_frame_server:
-						frame_data = struct.unpack('i i i i i', mad_frame_server)
-						exit_status 			= frame_data[0]
-						output_len 				= frame_data[1]
-						output_filesize 		= frame_data[2]
-						output_filename_length 	= frame_data[3]
-						error_len 				= frame_data[4]
-						
-						print(f"< status:\n{exit_status}")
-
-						if output_len > 0:
-							output = sd.recv( output_len ).decode("utf-8")
-							print("< stdout:")
-							print(output, file=sys.stdout)
-						else:
-							print("< stdout:")
-							print("", file=sys.stdout)
-
-						if error_len > 0:
-							err = sd.recv( error_len ).decode("utf-8")
-							print("< stderr:")
-							print(err, file=sys.stderr)
-						else:
-							print("< stderr:")
-							print("", file=sys.stderr)
-
-						# RECEIVING OUTPUT FILE
-						if output_filesize > 0 and output_filename_length > 0:			
-							output_file		= sd.recv( output_filesize )
-							output_filename	= sd.recv( output_filename_length ).decode("utf-8")
-
-							file = open(output_filename, 'wb')
-							file.write(output_file)
-							file.close()
-							
-							print(f"< output file name:\n{output_filename}")
-						
-					
-					if exit_status != 0:
-						error_in_actionset = True
+						error_in_actionset = parse_server_frame(mad_frame_server, sd)
 					
 					sd.close()
 					inputs.remove(sd)
