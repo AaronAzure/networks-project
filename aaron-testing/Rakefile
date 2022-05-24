@@ -1,9 +1,31 @@
 
 
 PORT  = 12345
-HOSTS = localhost #vkajdslm
+# HOSTS = localhost:22222 localhost:33333 #vkajdslm
+HOSTS = 192.168.43.51:22222 192.168.43.51 192.168.43.146:3333 192.168.43.147:1234
 
 actionset1: #potato
 	echo starting actionset1
-	remote-pwd
+	# remote-sleep 5
+	# remote-sleep 5
+	# remote-sleep 5
+	# remote-sleep 5
 	remote-cal
+	remote-cal
+	remote-cal
+	remote-cal
+	date
+	date
+	date
+	remote-date
+	remote-date
+	remote-date
+
+	remote-touch chicken.txt
+	# remote-cat pot
+
+actionset2:
+	remote-echo starting actionset2
+	remote-date
+	# remote-echo silhouette is not a boy eating potatoes but still spitting dragons, hot dawg > chicken.txt 
+	# 	requires chicken.txt
