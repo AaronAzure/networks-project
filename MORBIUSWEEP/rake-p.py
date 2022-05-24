@@ -1,11 +1,10 @@
 # CITS3002 2022 Project, written by:
 # Muhammad Maaz Ahmed	(22436686)
-# Aaron Wee				(22702446)
-# Daniel Ling			(22896002)
+# Aaron Wee		(22702446)
+# Daniel Ling		(22896002)
 
 import select, shutil, socket, struct, subprocess, sys
-import getopt, os
-import time #! DELETE
+import getopt, os, time 
 
 BOLD = "\033[1;30m"
 RED = "\033[1;31m"
@@ -16,17 +15,13 @@ MAG = "\033[1;35m"
 CYN = "\033[1;36m"
 RST = "\033[0m"
 
-############ HARDCODE, GET RID OF THIS LATER ##################################
-HOST = 'localhost'
-PORT_NUM = 12345
 DEFAULT_PORT = 12345
 VERBOSE = False
 rakefile  = 'Rakefile'	# Will be used to store rakefile.
-#################################################################################
 
 def fread(filename):
 	'''
-	Function that receives a filename and then returns important, stripped list of lines.
+	Function that receives a  @param filename. @returns stripped list of lines.
 	'''
 	rfile = open(filename, 'r')
 	lines = rfile.readlines()
@@ -198,34 +193,26 @@ def get_cheapest_host(hosts, argument, requirements=None):
 	
 
 def read_option_flags():
-	global HOST
 	global VERBOSE
-	global PORT_NUM
 	global SOCKET_NUM
 	global rakefile 
 
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], "vhi:p:r:")
+		opts, args = getopt.getopt(sys.argv[1:], "vhr:")
 		
 		for opt, arg in opts:
 			# HELP ( HOW TO USE )
 			if opt == '-h':
-				print('usage: rake-p.py -i <ip address> -p <port number> -r <rakefile>')
+				print('usage: rake-p.py -i <ip address> -r <rakefile>')
 				sys.exit()
-			# IP ADDRESS
-			elif opt == '-i':
-				HOST = arg
 			# RAKEFILE TO ANAYLSE
 			elif opt == '-r':
 				rakefile = arg
-			# PORT NUMBER
-			elif opt == "-p":
-				PORT_NUM = int(arg)
 			# VERBOSE - DEBUGGING
 			elif opt == "-v":
 				VERBOSE = True
 	except getopt.GetoptError:
-		print('usage: rakeserver.py -i <ip address> -p <port number> -r <rakefile>')
+		print('usage: rakeserver.py -i <ip address> -r <rakefile>')
 		sys.exit(2)
 
 def parse_server_frame (mad_frame, sd):
@@ -237,10 +224,10 @@ def parse_server_frame (mad_frame, sd):
 	'''
 	frame_data = struct.unpack('i i i i i', mad_frame)
 	exit_status 			= frame_data[0]
-	output_len 				= frame_data[1]
+	output_len 			= frame_data[1]
 	output_filesize 		= frame_data[2]
-	output_filename_length 	= frame_data[3]
-	error_len 				= frame_data[4]
+	output_filename_length		= frame_data[3]
+	error_len 			= frame_data[4]
 		
 	print(f"< status:\n{exit_status}")
 
@@ -278,8 +265,6 @@ def parse_server_frame (mad_frame, sd):
 ####################################################################################################
 
 def main():
-	global HOST
-	global PORT_NUM
 	global DEFAULT_PORT
 	global VERBOSE
 	global rakefile 
